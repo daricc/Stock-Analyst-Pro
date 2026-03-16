@@ -50,40 +50,29 @@ router.get("/stocks/quote", async (req, res) => {
   }
 
   try {
-    const data = await fetchYahooQuote(symbol.toUpperCase());
-    const chart = data as Record<string, unknown>;
-    const result = (chart["chart"] as Record<string, unknown>)?.["result"] as Record<string, unknown>[] | null;
-
-    if (!result || result.length === 0) {
+    const q = await fetchSingleQuoteViaChart(symbol.toUpperCase());
+    if (!q) {
       res.status(404).json({ error: "Stock not found" });
       return;
     }
 
-    const stockData = result[0];
-    const meta = stockData["meta"] as Record<string, unknown>;
-    const quote = meta;
-
-    const currentPrice = (quote["regularMarketPrice"] as number) ?? 0;
-    const prevClose = (quote["chartPreviousClose"] as number) ?? (quote["regularMarketPreviousClose"] as number) ?? currentPrice;
-    const change = currentPrice - prevClose;
-    const changePercent = prevClose !== 0 ? (change / prevClose) * 100 : 0;
-
+    const price = (q["regularMarketPrice"] as number) ?? 0;
     res.json({
-      symbol: (quote["symbol"] as string) ?? symbol.toUpperCase(),
-      name: (quote["longName"] as string) ?? (quote["shortName"] as string) ?? symbol.toUpperCase(),
-      price: currentPrice,
-      change: parseFloat(change.toFixed(2)),
-      changePercent: parseFloat(changePercent.toFixed(2)),
-      open: (quote["regularMarketOpen"] as number) ?? currentPrice,
-      high: (quote["regularMarketDayHigh"] as number) ?? currentPrice,
-      low: (quote["regularMarketDayLow"] as number) ?? currentPrice,
-      volume: (quote["regularMarketVolume"] as number) ?? 0,
-      marketCap: (quote["marketCap"] as number) ?? 0,
+      symbol: (q["symbol"] as string) ?? symbol.toUpperCase(),
+      name: (q["longName"] as string) ?? (q["shortName"] as string) ?? symbol.toUpperCase(),
+      price,
+      change: parseFloat(((q["regularMarketChange"] as number) ?? 0).toFixed(2)),
+      changePercent: parseFloat(((q["regularMarketChangePercent"] as number) ?? 0).toFixed(2)),
+      open: (q["regularMarketOpen"] as number) ?? price,
+      high: (q["regularMarketDayHigh"] as number) ?? price,
+      low: (q["regularMarketDayLow"] as number) ?? price,
+      volume: (q["regularMarketVolume"] as number) ?? 0,
+      marketCap: (q["marketCap"] as number) ?? 0,
       pe: null,
-      week52High: (quote["fiftyTwoWeekHigh"] as number) ?? currentPrice,
-      week52Low: (quote["fiftyTwoWeekLow"] as number) ?? currentPrice,
-      currency: (quote["currency"] as string) ?? "USD",
-      exchange: (quote["exchangeName"] as string) ?? (quote["fullExchangeName"] as string) ?? "Unknown",
+      week52High: (q["fiftyTwoWeekHigh"] as number) ?? price,
+      week52Low: (q["fiftyTwoWeekLow"] as number) ?? price,
+      currency: (q["currency"] as string) ?? "USD",
+      exchange: (q["exchangeName"] as string) ?? (q["fullExchangeName"] as string) ?? "Unknown",
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
@@ -426,14 +415,19 @@ async function fetchYahooScreener(scrId: string, count = 8): Promise<Record<stri
   }
 }
 
+const singleQuoteCache = new Map<string, { data: Record<string, unknown>; ts: number }>();
+const SINGLE_QUOTE_TTL = 60 * 1000;
+
 async function fetchSingleQuoteViaChart(symbol: string): Promise<Record<string, unknown> | null> {
+  const cached = singleQuoteCache.get(symbol);
+  if (cached && Date.now() - cached.ts < SINGLE_QUOTE_TTL) return cached.data;
   try {
     const data = await fetchYahooQuote(symbol);
     const chart = data as Record<string, unknown>;
     const result = (chart["chart"] as Record<string, unknown>)?.["result"] as Record<string, unknown>[] | null;
     if (!result || result.length === 0) return null;
     const meta = result[0]["meta"] as Record<string, unknown>;
-    return {
+    const quote = {
       symbol: (meta["symbol"] as string) ?? symbol,
       longName: (meta["longName"] as string) ?? null,
       shortName: (meta["shortName"] as string) ?? null,
@@ -448,6 +442,8 @@ async function fetchSingleQuoteViaChart(symbol: string): Promise<Record<string, 
       marketCap: (meta["marketCap"] as number) ?? 0,
       quoteType: (meta["instrumentType"] as string) ?? ((symbol.includes("-USD") || symbol.includes("-BTC")) ? "CRYPTOCURRENCY" : "EQUITY"),
     };
+    singleQuoteCache.set(symbol, { data: quote, ts: Date.now() });
+    return quote;
   } catch {
     return null;
   }
@@ -497,7 +493,7 @@ const VOLATILE_STOCKS = ["GME", "MARA", "RIOT", "SOFI"];
 
 let discoverCache: { data: unknown; timestamp: number } | null = null;
 let discoverInFlight: Promise<unknown> | null = null;
-const DISCOVER_CACHE_TTL = 3 * 60 * 1000;
+const DISCOVER_CACHE_TTL = 8 * 60 * 1000;
 
 const VALID_CATEGORIES = new Set(["trending", "gainers", "movers", "crypto", "ai_pick"]);
 const VALID_SENTIMENTS = new Set(["BULLISH", "BEARISH", "NEUTRAL"]);
@@ -714,5 +710,16 @@ router.get("/stocks/discover", async (_req, res) => {
     }
   }
 });
+
+setTimeout(() => {
+  if (discoverCache) return;
+  console.log("[Discover] Warming cache on startup...");
+  generateDiscoverData()
+    .then((data) => {
+      discoverCache = { data, timestamp: Date.now() };
+      console.log("[Discover] Cache warmed — ready for instant responses");
+    })
+    .catch((err) => console.error("[Discover] Startup warm failed:", err));
+}, 3000);
 
 export default router;

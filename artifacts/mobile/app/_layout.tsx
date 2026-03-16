@@ -20,7 +20,16 @@ import { PortfolioProvider } from "@/contexts/portfolio-context";
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retry: 1,
+      gcTime: 5 * 60 * 1000,
+    },
+  },
+});
 
 function RootLayoutNav() {
   return (

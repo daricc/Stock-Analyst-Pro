@@ -179,8 +179,10 @@ export default function PortfolioScreen() {
     queries: symbols.map((sym) => ({
       queryKey: ["price", sym],
       queryFn: () => fetchPrice(sym),
-      refetchInterval: 15000,
-      staleTime: 10000,
+      refetchInterval: 30000,
+      staleTime: 55000,
+      gcTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
     })),
   });
 
