@@ -5,14 +5,20 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { EntryStrategy } from "./entryStrategy";
+import type { ExitStrategy } from "./exitStrategy";
+import type { FuturesSpecific } from "./futuresSpecific";
 import type { PriceRange } from "./priceRange";
 import type { PriceTargets } from "./priceTargets";
+import type { ShortSpecific } from "./shortSpecific";
 import type { Signal } from "./signal";
+import type { StockAnalysisInvestmentStrategy } from "./stockAnalysisInvestmentStrategy";
 import type { StockAnalysisRecommendation } from "./stockAnalysisRecommendation";
 import type { StockAnalysisSentiment } from "./stockAnalysisSentiment";
 
 export interface StockAnalysis {
   symbol: string;
+  investmentStrategy: StockAnalysisInvestmentStrategy;
   recommendation: StockAnalysisRecommendation;
   confidence: number;
   targetPrice: number;
@@ -25,5 +31,9 @@ export interface StockAnalysis {
   risks: string[];
   catalysts: string[];
   priceTargets?: PriceTargets;
+  entryStrategy: EntryStrategy;
+  exitStrategy: ExitStrategy;
+  futuresSpecific?: FuturesSpecific;
+  shortSpecific?: ShortSpecific;
   generatedAt: string;
 }

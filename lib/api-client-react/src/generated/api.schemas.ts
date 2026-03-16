@@ -47,11 +47,62 @@ export interface StockHistory {
   data: PricePoint[];
 }
 
+export type AnalyzeStockRequestInvestmentStrategy =
+  (typeof AnalyzeStockRequestInvestmentStrategy)[keyof typeof AnalyzeStockRequestInvestmentStrategy];
+
+export const AnalyzeStockRequestInvestmentStrategy = {
+  standard: "standard",
+  futures: "futures",
+  short: "short",
+} as const;
+
 export interface AnalyzeStockRequest {
   symbol: string;
+  investmentStrategy?: AnalyzeStockRequestInvestmentStrategy;
   quote?: StockQuote;
   history?: StockHistory;
 }
+
+export interface EntryStrategy {
+  idealEntryPrice: number;
+  entryConditions: string[];
+  supportLevels: number[];
+  timing: string;
+}
+
+export interface ExitStrategy {
+  targetExitPrice: number;
+  stopLossPrice: number;
+  trailingStopPercent: number;
+  exitConditions: string[];
+  resistanceLevels: number[];
+  timing: string;
+}
+
+export interface FuturesSpecific {
+  recommendedDuration: string;
+  leverageConsiderations: string;
+  marginRequirements: string;
+  rolloverTiming: string;
+  futuresRisks: string[];
+}
+
+export interface ShortSpecific {
+  borrowCostAssessment: string;
+  shortSqueezeRisk: string;
+  optimalShortEntry: string;
+  coverTiming: string;
+  shortRisks: string[];
+}
+
+export type StockAnalysisInvestmentStrategy =
+  (typeof StockAnalysisInvestmentStrategy)[keyof typeof StockAnalysisInvestmentStrategy];
+
+export const StockAnalysisInvestmentStrategy = {
+  standard: "standard",
+  futures: "futures",
+  short: "short",
+} as const;
 
 export type StockAnalysisRecommendation =
   (typeof StockAnalysisRecommendation)[keyof typeof StockAnalysisRecommendation];
@@ -100,6 +151,7 @@ export interface PriceTargets {
 
 export interface StockAnalysis {
   symbol: string;
+  investmentStrategy: StockAnalysisInvestmentStrategy;
   recommendation: StockAnalysisRecommendation;
   confidence: number;
   targetPrice: number;
@@ -112,6 +164,10 @@ export interface StockAnalysis {
   risks: string[];
   catalysts: string[];
   priceTargets?: PriceTargets;
+  entryStrategy: EntryStrategy;
+  exitStrategy: ExitStrategy;
+  futuresSpecific?: FuturesSpecific;
+  shortSpecific?: ShortSpecific;
   generatedAt: string;
 }
 

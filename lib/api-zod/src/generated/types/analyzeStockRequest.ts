@@ -5,11 +5,13 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { AnalyzeStockRequestInvestmentStrategy } from "./analyzeStockRequestInvestmentStrategy";
 import type { StockHistory } from "./stockHistory";
 import type { StockQuote } from "./stockQuote";
 
 export interface AnalyzeStockRequest {
   symbol: string;
+  investmentStrategy?: AnalyzeStockRequestInvestmentStrategy;
   quote?: StockQuote;
   history?: StockHistory;
 }

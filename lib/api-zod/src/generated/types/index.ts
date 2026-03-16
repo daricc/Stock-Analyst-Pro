@@ -7,7 +7,11 @@
  */
 
 export * from "./analyzeStockRequest";
+export * from "./analyzeStockRequestInvestmentStrategy";
+export * from "./entryStrategy";
 export * from "./errorResponse";
+export * from "./exitStrategy";
+export * from "./futuresSpecific";
 export * from "./getStockHistoryParams";
 export * from "./getStockHistoryPeriod";
 export * from "./getStockQuoteParams";
@@ -16,9 +20,11 @@ export * from "./pricePoint";
 export * from "./priceRange";
 export * from "./priceTargets";
 export * from "./searchStocksParams";
+export * from "./shortSpecific";
 export * from "./signal";
 export * from "./signalSignal";
 export * from "./stockAnalysis";
+export * from "./stockAnalysisInvestmentStrategy";
 export * from "./stockAnalysisRecommendation";
 export * from "./stockAnalysisSentiment";
 export * from "./stockHistory";

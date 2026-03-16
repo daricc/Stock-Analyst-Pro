@@ -74,8 +74,13 @@ export const GetStockHistoryResponse = zod.object({
  * Returns AI-powered analysis with predictions and recommendations
  * @summary Analyze a stock with AI
  */
+export const analyzeStockBodyInvestmentStrategyDefault = `standard`;
+
 export const AnalyzeStockBody = zod.object({
   symbol: zod.string(),
+  investmentStrategy: zod
+    .enum(["standard", "futures", "short"])
+    .default(analyzeStockBodyInvestmentStrategyDefault),
   quote: zod
     .object({
       symbol: zod.string(),
@@ -116,6 +121,7 @@ export const AnalyzeStockBody = zod.object({
 
 export const AnalyzeStockResponse = zod.object({
   symbol: zod.string(),
+  investmentStrategy: zod.enum(["standard", "futures", "short"]),
   recommendation: zod.enum([
     "STRONG_BUY",
     "BUY",
@@ -155,6 +161,38 @@ export const AnalyzeStockResponse = zod.object({
       bear: zod.number(),
       base: zod.number(),
       bull: zod.number(),
+    })
+    .optional(),
+  entryStrategy: zod.object({
+    idealEntryPrice: zod.number(),
+    entryConditions: zod.array(zod.string()),
+    supportLevels: zod.array(zod.number()),
+    timing: zod.string(),
+  }),
+  exitStrategy: zod.object({
+    targetExitPrice: zod.number(),
+    stopLossPrice: zod.number(),
+    trailingStopPercent: zod.number(),
+    exitConditions: zod.array(zod.string()),
+    resistanceLevels: zod.array(zod.number()),
+    timing: zod.string(),
+  }),
+  futuresSpecific: zod
+    .object({
+      recommendedDuration: zod.string(),
+      leverageConsiderations: zod.string(),
+      marginRequirements: zod.string(),
+      rolloverTiming: zod.string(),
+      futuresRisks: zod.array(zod.string()),
+    })
+    .optional(),
+  shortSpecific: zod
+    .object({
+      borrowCostAssessment: zod.string(),
+      shortSqueezeRisk: zod.string(),
+      optimalShortEntry: zod.string(),
+      coverTiming: zod.string(),
+      shortRisks: zod.array(zod.string()),
     })
     .optional(),
   generatedAt: zod.string(),

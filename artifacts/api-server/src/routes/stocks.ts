@@ -173,11 +173,66 @@ router.get("/stocks/search", async (req, res) => {
   }
 });
 
+function buildStrategyPromptSection(strategy: string): string {
+  const entryExitJson = `
+  "entryStrategy": {
+    "idealEntryPrice": <number>,
+    "entryConditions": ["<condition 1>", "<condition 2>", "<condition 3>"],
+    "supportLevels": [<price1>, <price2>, <price3>],
+    "timing": "<when to enter based on current conditions>"
+  },
+  "exitStrategy": {
+    "targetExitPrice": <number>,
+    "stopLossPrice": <number>,
+    "trailingStopPercent": <number between 1-10>,
+    "exitConditions": ["<condition 1>", "<condition 2>", "<condition 3>"],
+    "resistanceLevels": [<price1>, <price2>, <price3>],
+    "timing": "<when to exit based on current conditions>"
+  },`;
+
+  if (strategy === "futures") {
+    return `
+Analyze this from a FUTURES TRADING perspective. Consider contract duration, leverage, margin, and rollover timing.
+
+Additional JSON fields to include:
+${entryExitJson}
+  "futuresSpecific": {
+    "recommendedDuration": "<recommended contract duration e.g. near-month, quarterly>",
+    "leverageConsiderations": "<analysis of appropriate leverage levels and risks>",
+    "marginRequirements": "<estimated margin requirements and maintenance considerations>",
+    "rolloverTiming": "<when to roll over contracts and strategy for doing so>",
+    "futuresRisks": ["<futures-specific risk 1>", "<futures-specific risk 2>", "<futures-specific risk 3>"]
+  },`;
+  }
+
+  if (strategy === "short") {
+    return `
+Analyze this from a SHORT SELLING perspective. Evaluate borrow costs, short squeeze risk, optimal short entry, and cover timing.
+
+Additional JSON fields to include:
+${entryExitJson}
+  "shortSpecific": {
+    "borrowCostAssessment": "<estimated borrow costs and availability>",
+    "shortSqueezeRisk": "<assessment of short squeeze potential and current short interest>",
+    "optimalShortEntry": "<specific price levels and conditions for initiating a short position>",
+    "coverTiming": "<when and at what levels to cover the short position>",
+    "shortRisks": ["<short-specific risk 1>", "<short-specific risk 2>", "<short-specific risk 3>"]
+  },`;
+  }
+
+  return `
+Analyze this from a STANDARD BUY/HOLD investment perspective.
+
+Additional JSON fields to include:
+${entryExitJson}`;
+}
+
 router.post("/stocks/analyze", async (req, res) => {
-  const { symbol, quote, history } = req.body as {
+  const { symbol, quote, history, investmentStrategy } = req.body as {
     symbol: string;
     quote?: Record<string, unknown>;
     history?: Record<string, unknown>;
+    investmentStrategy?: string;
   };
 
   if (!symbol) {
@@ -185,6 +240,8 @@ router.post("/stocks/analyze", async (req, res) => {
     return;
   }
 
+  const validStrategies = ["standard", "futures", "short"];
+  const strategy = validStrategies.includes(investmentStrategy ?? "") ? investmentStrategy! : "standard";
   try {
     let stockQuote = quote;
     let stockHistory = history;
@@ -217,7 +274,13 @@ router.post("/stocks/analyze", async (req, res) => {
       ? ((recentPrices[recentPrices.length - 1] - recentPrices[0]) / recentPrices[0]) * 100
       : null;
 
+    const strategySection = buildStrategyPromptSection(strategy);
+
+    const strategyLabel = strategy === "futures" ? "Futures Trading" : strategy === "short" ? "Short Selling" : "Standard (Buy/Hold)";
+
     const prompt = `You are a professional stock analyst with expertise in technical and fundamental analysis. Analyze the following stock data and provide a detailed investment recommendation.
+
+Investment Strategy: ${strategyLabel}
 
 Stock: ${name} (${symbol})
 ${currentPrice ? `Current Price: $${currentPrice}` : ""}
@@ -228,6 +291,7 @@ ${marketCap ? `Market Cap: $${(marketCap / 1e9).toFixed(2)}B` : ""}
 ${volume ? `Volume: ${(volume / 1e6).toFixed(2)}M` : ""}
 ${priceChange30d !== null ? `30-Day Price Change: ${priceChange30d.toFixed(2)}%` : ""}
 ${recentPrices.length > 0 ? `Recent 30-day price trend: ${recentPrices.slice(0, 5).map((p) => `$${p.toFixed(2)}`).join(", ")}...${recentPrices.slice(-5).map((p) => `$${p.toFixed(2)}`).join(", ")}` : ""}
+${strategySection}
 
 Provide a comprehensive stock analysis in the following JSON format exactly (no markdown, just raw JSON):
 {
@@ -236,7 +300,7 @@ Provide a comprehensive stock analysis in the following JSON format exactly (no 
   "targetPrice": <number>,
   "targetPriceRange": { "low": <number>, "high": <number> },
   "timeHorizon": "3-6 months",
-  "summary": "<2-3 sentence investment thesis>",
+  "summary": "<2-3 sentence investment thesis tailored to ${strategyLabel} strategy>",
   "sentiment": "BULLISH" | "NEUTRAL" | "BEARISH",
   "technicalSignals": [
     { "name": "<signal name>", "signal": "BULLISH" | "NEUTRAL" | "BEARISH", "detail": "<explanation>" },
@@ -248,14 +312,15 @@ Provide a comprehensive stock analysis in the following JSON format exactly (no 
   ],
   "risks": ["<risk 1>", "<risk 2>", "<risk 3>"],
   "catalysts": ["<catalyst 1>", "<catalyst 2>", "<catalyst 3>"],
-  "priceTargets": { "bear": <number>, "base": <number>, "bull": <number> }
+  "priceTargets": { "bear": <number>, "base": <number>, "bull": <number> },
+  ...include the additional strategy-specific JSON fields described above
 }
 
-Be specific and data-driven. Base your analysis on the provided data. Provide realistic price targets based on the current price.`;
+Be specific and data-driven. Base your analysis on the provided data. Provide realistic price targets and entry/exit levels based on the current price. All price levels must be concrete numbers.`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-5.2",
-      max_completion_tokens: 2000,
+      max_completion_tokens: 3000,
       messages: [
         {
           role: "system",
@@ -274,8 +339,25 @@ Be specific and data-driven. Base your analysis on the provided data. Provide re
       analysis = jsonMatch ? (JSON.parse(jsonMatch[0]) as Record<string, unknown>) : {};
     }
 
-    res.json({
+    const defaultEntry = {
+      idealEntryPrice: currentPrice ?? 0,
+      entryConditions: ["Wait for confirmation of trend direction"],
+      supportLevels: currentPrice ? [currentPrice * 0.97, currentPrice * 0.94, currentPrice * 0.90] : [],
+      timing: "Monitor for entry signal",
+    };
+
+    const defaultExit = {
+      targetExitPrice: currentPrice ? currentPrice * 1.1 : 0,
+      stopLossPrice: currentPrice ? currentPrice * 0.95 : 0,
+      trailingStopPercent: 5,
+      exitConditions: ["Target price reached", "Stop loss triggered"],
+      resistanceLevels: currentPrice ? [currentPrice * 1.03, currentPrice * 1.06, currentPrice * 1.10] : [],
+      timing: "Exit when conditions are met",
+    };
+
+    const result: Record<string, unknown> = {
       symbol: symbol.toUpperCase(),
+      investmentStrategy: strategy,
       recommendation: analysis["recommendation"] ?? "HOLD",
       confidence: analysis["confidence"] ?? 50,
       targetPrice: analysis["targetPrice"] ?? currentPrice,
@@ -295,8 +377,19 @@ Be specific and data-driven. Base your analysis on the provided data. Provide re
         base: currentPrice ?? 0,
         bull: currentPrice ? currentPrice * 1.2 : 0,
       },
+      entryStrategy: analysis["entryStrategy"] ?? defaultEntry,
+      exitStrategy: analysis["exitStrategy"] ?? defaultExit,
       generatedAt: new Date().toISOString(),
-    });
+    };
+
+    if (strategy === "futures" && analysis["futuresSpecific"]) {
+      result["futuresSpecific"] = analysis["futuresSpecific"];
+    }
+    if (strategy === "short" && analysis["shortSpecific"]) {
+      result["shortSpecific"] = analysis["shortSpecific"];
+    }
+
+    res.json(result);
   } catch (err) {
     console.error("Analysis error:", err);
     res.status(500).json({ error: "Failed to analyze stock" });

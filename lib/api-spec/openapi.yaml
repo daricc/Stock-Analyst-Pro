@@ -216,17 +216,112 @@ components:
       properties:
         symbol:
           type: string
+        investmentStrategy:
+          type: string
+          enum: [standard, futures, short]
+          default: standard
         quote:
           $ref: "#/components/schemas/StockQuote"
         history:
           $ref: "#/components/schemas/StockHistory"
       required:
         - symbol
+    EntryStrategy:
+      type: object
+      properties:
+        idealEntryPrice:
+          type: number
+        entryConditions:
+          type: array
+          items:
+            type: string
+        supportLevels:
+          type: array
+          items:
+            type: number
+        timing:
+          type: string
+      required:
+        - idealEntryPrice
+        - entryConditions
+        - supportLevels
+        - timing
+    ExitStrategy:
+      type: object
+      properties:
+        targetExitPrice:
+          type: number
+        stopLossPrice:
+          type: number
+        trailingStopPercent:
+          type: number
+        exitConditions:
+          type: array
+          items:
+            type: string
+        resistanceLevels:
+          type: array
+          items:
+            type: number
+        timing:
+          type: string
+      required:
+        - targetExitPrice
+        - stopLossPrice
+        - trailingStopPercent
+        - exitConditions
+        - resistanceLevels
+        - timing
+    FuturesSpecific:
+      type: object
+      properties:
+        recommendedDuration:
+          type: string
+        leverageConsiderations:
+          type: string
+        marginRequirements:
+          type: string
+        rolloverTiming:
+          type: string
+        futuresRisks:
+          type: array
+          items:
+            type: string
+      required:
+        - recommendedDuration
+        - leverageConsiderations
+        - marginRequirements
+        - rolloverTiming
+        - futuresRisks
+    ShortSpecific:
+      type: object
+      properties:
+        borrowCostAssessment:
+          type: string
+        shortSqueezeRisk:
+          type: string
+        optimalShortEntry:
+          type: string
+        coverTiming:
+          type: string
+        shortRisks:
+          type: array
+          items:
+            type: string
+      required:
+        - borrowCostAssessment
+        - shortSqueezeRisk
+        - optimalShortEntry
+        - coverTiming
+        - shortRisks
     StockAnalysis:
       type: object
       properties:
         symbol:
           type: string
+        investmentStrategy:
+          type: string
+          enum: [standard, futures, short]
         recommendation:
           type: string
           enum: [STRONG_BUY, BUY, HOLD, SELL, STRONG_SELL]
@@ -261,10 +356,19 @@ components:
             type: string
         priceTargets:
           $ref: "#/components/schemas/PriceTargets"
+        entryStrategy:
+          $ref: "#/components/schemas/EntryStrategy"
+        exitStrategy:
+          $ref: "#/components/schemas/ExitStrategy"
+        futuresSpecific:
+          $ref: "#/components/schemas/FuturesSpecific"
+        shortSpecific:
+          $ref: "#/components/schemas/ShortSpecific"
         generatedAt:
           type: string
       required:
         - symbol
+        - investmentStrategy
         - recommendation
         - confidence
         - targetPrice
@@ -274,6 +378,8 @@ components:
         - fundamentalSignals
         - risks
         - catalysts
+        - entryStrategy
+        - exitStrategy
         - generatedAt
     PriceRange:
       type: object

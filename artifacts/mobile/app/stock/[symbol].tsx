@@ -53,21 +53,67 @@ interface Signal {
   detail: string;
 }
 
+interface EntryStrategy {
+  idealEntryPrice: number;
+  entryConditions: string[];
+  supportLevels: number[];
+  timing: string;
+}
+
+interface ExitStrategy {
+  targetExitPrice: number;
+  stopLossPrice: number;
+  trailingStopPercent: number;
+  exitConditions: string[];
+  resistanceLevels: number[];
+  timing: string;
+}
+
+interface FuturesSpecific {
+  recommendedDuration: string;
+  leverageConsiderations: string;
+  marginRequirements: string;
+  rolloverTiming: string;
+  futuresRisks: string[];
+}
+
+interface ShortSpecific {
+  borrowCostAssessment: string;
+  shortSqueezeRisk: string;
+  optimalShortEntry: string;
+  coverTiming: string;
+  shortRisks: string[];
+}
+
+type InvestmentStrategy = "standard" | "futures" | "short";
+
 interface StockAnalysis {
   symbol: string;
+  investmentStrategy: InvestmentStrategy;
   recommendation: "STRONG_BUY" | "BUY" | "HOLD" | "SELL" | "STRONG_SELL";
   confidence: number;
   targetPrice: number;
-  targetPriceRange: { low: number; high: number };
-  timeHorizon: string;
+  targetPriceRange?: { low: number; high: number };
+  timeHorizon?: string;
   summary: string;
   sentiment: "BULLISH" | "NEUTRAL" | "BEARISH";
   technicalSignals: Signal[];
   fundamentalSignals: Signal[];
   risks: string[];
   catalysts: string[];
-  priceTargets: { bear: number; base: number; bull: number };
+  priceTargets?: { bear: number; base: number; bull: number };
+  entryStrategy: EntryStrategy;
+  exitStrategy: ExitStrategy;
+  futuresSpecific?: FuturesSpecific;
+  shortSpecific?: ShortSpecific;
+  generatedAt: string;
 }
+
+const STRATEGIES: { label: string; value: InvestmentStrategy }[] = [
+  { label: "Standard", value: "standard" },
+  { label: "Futures", value: "futures" },
+  { label: "Short", value: "short" },
+];
 
 const PERIODS = [
   { label: "1D", value: "1d" },
@@ -96,12 +142,13 @@ async function fetchHistory(symbol: string, period: string): Promise<PricePoint[
 async function analyzeStock(
   symbol: string,
   quote: StockQuote | undefined,
-  history: PricePoint[] | undefined
+  history: PricePoint[] | undefined,
+  investmentStrategy: InvestmentStrategy
 ): Promise<StockAnalysis> {
   const res = await fetch(`${getApiUrl()}api/stocks/analyze`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ symbol, quote, history: { symbol, period: "3mo", data: history } }),
+    body: JSON.stringify({ symbol, quote, history: { symbol, period: "3mo", data: history }, investmentStrategy }),
   });
   if (!res.ok) throw new Error("Analysis failed");
   return res.json() as Promise<StockAnalysis>;
@@ -214,6 +261,8 @@ export default function StockDetailScreen() {
   const { symbol, name } = useLocalSearchParams<{ symbol: string; name: string }>();
   const insets = useSafeAreaInsets();
   const [period, setPeriod] = useState("1mo");
+  const [selectedStrategy, setSelectedStrategy] = useState<InvestmentStrategy>("standard");
+
   const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useWatchlist();
   const inWatchlist = isInWatchlist(symbol ?? "");
 
@@ -237,7 +286,8 @@ export default function StockDetailScreen() {
     isPending: analyzing,
     isError: analysisError,
   } = useMutation({
-    mutationFn: () => analyzeStock(symbol ?? "", quote, history),
+    mutationFn: () => analyzeStock(symbol ?? "", quote, history, selectedStrategy),
+
   });
 
   const isPositive = (quote?.changePercent ?? 0) >= 0;
@@ -345,13 +395,38 @@ export default function StockDetailScreen() {
             </View>
 
             {!analysis && !analyzing && (
-              <Pressable
-                style={({ pressed }) => [styles.analyzeBtn, pressed && styles.analyzeBtnPressed]}
-                onPress={handleAnalyze}
-              >
-                <Feather name="cpu" size={20} color={C.navy} />
-                <Text style={styles.analyzeBtnText}>Run AI Analysis</Text>
-              </Pressable>
+              <View style={styles.strategySection}>
+                <Text style={styles.strategySectionTitle}>Investment Strategy</Text>
+                <View style={styles.strategyRow}>
+                  {STRATEGIES.map((s) => (
+                    <Pressable
+                      key={s.value}
+                      style={[styles.strategyBtn, selectedStrategy === s.value && styles.strategyBtnActive]}
+                      onPress={() => {
+                        setSelectedStrategy(s.value);
+                        Haptics.selectionAsync();
+                      }}
+                    >
+                      <Feather
+                        name={s.value === "standard" ? "bar-chart-2" : s.value === "futures" ? "clock" : "arrow-down-right"}
+                        size={14}
+                        color={selectedStrategy === s.value ? C.navy : C.whiteMedium}
+                      />
+                      <Text style={[styles.strategyLabel, selectedStrategy === s.value && styles.strategyLabelActive]}>
+                        {s.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Pressable
+                  style={({ pressed }) => [styles.analyzeBtn, pressed && styles.analyzeBtnPressed]}
+                  onPress={handleAnalyze}
+                >
+                  <Feather name="cpu" size={20} color={C.navy} />
+                  <Text style={styles.analyzeBtnText}>Run AI Analysis</Text>
+                </Pressable>
+              </View>
+
             )}
 
             {analyzing && (
@@ -374,7 +449,10 @@ export default function StockDetailScreen() {
             {analysis && (
               <View style={styles.analysisContainer}>
                 <View style={styles.analysisHeader}>
-                  <Text style={styles.sectionTitle}>AI Analysis</Text>
+                  <Text style={styles.sectionTitle}>
+                    AI Analysis · {analysis.investmentStrategy === "futures" ? "Futures" : analysis.investmentStrategy === "short" ? "Short" : "Standard"}
+                  </Text>
+
                   <Text style={styles.analysisTimestamp}>
                     {new Date(analysis.generatedAt).toLocaleDateString()}
                   </Text>
@@ -407,29 +485,171 @@ export default function StockDetailScreen() {
                   <Text style={styles.analysisSummary}>{analysis.summary}</Text>
                 </View>
 
-                <View style={styles.priceTargetsCard}>
-                  <Text style={styles.cardSectionTitle}>Price Targets · {analysis.timeHorizon}</Text>
-                  <View style={styles.priceTargetsRow}>
-                    <View style={styles.priceTarget}>
-                      <Text style={styles.ptLabel}>Bear</Text>
-                      <Text style={[styles.ptValue, { color: C.negative }]}>
-                        ${analysis.priceTargets.bear.toFixed(2)}
-                      </Text>
-                    </View>
-                    <View style={[styles.priceTarget, styles.ptBase]}>
-                      <Text style={styles.ptLabel}>Base</Text>
-                      <Text style={[styles.ptValue, styles.ptBaseValue]}>
-                        ${analysis.priceTargets.base.toFixed(2)}
-                      </Text>
-                    </View>
-                    <View style={styles.priceTarget}>
-                      <Text style={styles.ptLabel}>Bull</Text>
-                      <Text style={[styles.ptValue, { color: C.positive }]}>
-                        ${analysis.priceTargets.bull.toFixed(2)}
-                      </Text>
+                {analysis.priceTargets && (
+                  <View style={styles.priceTargetsCard}>
+                    <Text style={styles.cardSectionTitle}>Price Targets{analysis.timeHorizon ? ` · ${analysis.timeHorizon}` : ""}</Text>
+                    <View style={styles.priceTargetsRow}>
+                      <View style={styles.priceTarget}>
+                        <Text style={styles.ptLabel}>Bear</Text>
+                        <Text style={[styles.ptValue, { color: C.negative }]}>
+                          ${analysis.priceTargets.bear.toFixed(2)}
+                        </Text>
+                      </View>
+                      <View style={[styles.priceTarget, styles.ptBase]}>
+                        <Text style={styles.ptLabel}>Base</Text>
+                        <Text style={[styles.ptValue, styles.ptBaseValue]}>
+                          ${analysis.priceTargets.base.toFixed(2)}
+                        </Text>
+                      </View>
+                      <View style={styles.priceTarget}>
+                        <Text style={styles.ptLabel}>Bull</Text>
+                        <Text style={[styles.ptValue, { color: C.positive }]}>
+                          ${analysis.priceTargets.bull.toFixed(2)}
+                        </Text>
+                      </View>
                     </View>
                   </View>
-                </View>
+                )}
+
+                {analysis.entryStrategy && (
+                  <View style={styles.strategyCard}>
+                    <View style={styles.strategyCardHeader}>
+                      <Feather name="log-in" size={16} color={C.positive} />
+                      <Text style={styles.cardSectionTitle}>Entry Strategy</Text>
+                    </View>
+                    <View style={styles.strategyDetailRow}>
+                      <Text style={styles.strategyDetailLabel}>Ideal Entry</Text>
+                      <Text style={[styles.strategyDetailValue, { color: C.positive }]}>
+                        ${analysis.entryStrategy.idealEntryPrice.toFixed(2)}
+                      </Text>
+                    </View>
+                    {analysis.entryStrategy.supportLevels.length > 0 && (
+                      <View style={styles.strategyDetailRow}>
+                        <Text style={styles.strategyDetailLabel}>Support Levels</Text>
+                        <Text style={styles.strategyDetailValue}>
+                          {analysis.entryStrategy.supportLevels.map((p) => `$${p.toFixed(2)}`).join(", ")}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.strategyTimingBox}>
+                      <Feather name="clock" size={12} color={C.whiteLow} />
+                      <Text style={styles.strategyTimingText}>{analysis.entryStrategy.timing}</Text>
+                    </View>
+                    {analysis.entryStrategy.entryConditions.map((c, i) => (
+                      <View key={i} style={styles.listItem}>
+                        <View style={[styles.listDot, { backgroundColor: C.positive }]} />
+                        <Text style={styles.listItemText}>{c}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {analysis.exitStrategy && (
+                  <View style={styles.strategyCard}>
+                    <View style={styles.strategyCardHeader}>
+                      <Feather name="log-out" size={16} color={C.negative} />
+                      <Text style={styles.cardSectionTitle}>Exit Strategy</Text>
+                    </View>
+                    <View style={styles.strategyDetailRow}>
+                      <Text style={styles.strategyDetailLabel}>Target Exit</Text>
+                      <Text style={[styles.strategyDetailValue, { color: C.positive }]}>
+                        ${analysis.exitStrategy.targetExitPrice.toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={styles.strategyDetailRow}>
+                      <Text style={styles.strategyDetailLabel}>Stop Loss</Text>
+                      <Text style={[styles.strategyDetailValue, { color: C.negative }]}>
+                        ${analysis.exitStrategy.stopLossPrice.toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={styles.strategyDetailRow}>
+                      <Text style={styles.strategyDetailLabel}>Trailing Stop</Text>
+                      <Text style={styles.strategyDetailValue}>
+                        {analysis.exitStrategy.trailingStopPercent}%
+                      </Text>
+                    </View>
+                    {analysis.exitStrategy.resistanceLevels.length > 0 && (
+                      <View style={styles.strategyDetailRow}>
+                        <Text style={styles.strategyDetailLabel}>Resistance</Text>
+                        <Text style={styles.strategyDetailValue}>
+                          {analysis.exitStrategy.resistanceLevels.map((p) => `$${p.toFixed(2)}`).join(", ")}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.strategyTimingBox}>
+                      <Feather name="clock" size={12} color={C.whiteLow} />
+                      <Text style={styles.strategyTimingText}>{analysis.exitStrategy.timing}</Text>
+                    </View>
+                    {analysis.exitStrategy.exitConditions.map((c, i) => (
+                      <View key={i} style={styles.listItem}>
+                        <View style={[styles.listDot, { backgroundColor: C.negative }]} />
+                        <Text style={styles.listItemText}>{c}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {analysis.futuresSpecific && (
+                  <View style={styles.strategyCard}>
+                    <View style={styles.strategyCardHeader}>
+                      <Feather name="layers" size={16} color={C.tint} />
+                      <Text style={styles.cardSectionTitle}>Futures Insights</Text>
+                    </View>
+                    <View style={styles.strategyDetailRow}>
+                      <Text style={styles.strategyDetailLabel}>Duration</Text>
+                      <Text style={styles.strategyDetailValue}>{analysis.futuresSpecific.recommendedDuration}</Text>
+                    </View>
+                    <View style={styles.strategyInsightBox}>
+                      <Text style={styles.strategyInsightLabel}>Leverage</Text>
+                      <Text style={styles.strategyInsightText}>{analysis.futuresSpecific.leverageConsiderations}</Text>
+                    </View>
+                    <View style={styles.strategyInsightBox}>
+                      <Text style={styles.strategyInsightLabel}>Margin</Text>
+                      <Text style={styles.strategyInsightText}>{analysis.futuresSpecific.marginRequirements}</Text>
+                    </View>
+                    <View style={styles.strategyInsightBox}>
+                      <Text style={styles.strategyInsightLabel}>Rollover</Text>
+                      <Text style={styles.strategyInsightText}>{analysis.futuresSpecific.rolloverTiming}</Text>
+                    </View>
+                    {analysis.futuresSpecific.futuresRisks.map((r, i) => (
+                      <View key={i} style={styles.listItem}>
+                        <View style={[styles.listDot, { backgroundColor: C.neutral }]} />
+                        <Text style={styles.listItemText}>{r}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {analysis.shortSpecific && (
+                  <View style={styles.strategyCard}>
+                    <View style={styles.strategyCardHeader}>
+                      <Feather name="arrow-down-right" size={16} color={C.tint} />
+                      <Text style={styles.cardSectionTitle}>Short Selling Insights</Text>
+                    </View>
+                    <View style={styles.strategyInsightBox}>
+                      <Text style={styles.strategyInsightLabel}>Borrow Cost</Text>
+                      <Text style={styles.strategyInsightText}>{analysis.shortSpecific.borrowCostAssessment}</Text>
+                    </View>
+                    <View style={styles.strategyInsightBox}>
+                      <Text style={styles.strategyInsightLabel}>Squeeze Risk</Text>
+                      <Text style={styles.strategyInsightText}>{analysis.shortSpecific.shortSqueezeRisk}</Text>
+                    </View>
+                    <View style={styles.strategyInsightBox}>
+                      <Text style={styles.strategyInsightLabel}>Entry Point</Text>
+                      <Text style={styles.strategyInsightText}>{analysis.shortSpecific.optimalShortEntry}</Text>
+                    </View>
+                    <View style={styles.strategyInsightBox}>
+                      <Text style={styles.strategyInsightLabel}>Cover Timing</Text>
+                      <Text style={styles.strategyInsightText}>{analysis.shortSpecific.coverTiming}</Text>
+                    </View>
+                    {analysis.shortSpecific.shortRisks.map((r, i) => (
+                      <View key={i} style={styles.listItem}>
+                        <View style={[styles.listDot, { backgroundColor: C.negative }]} />
+                        <Text style={styles.listItemText}>{r}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
 
                 {analysis.technicalSignals.length > 0 && (
                   <View style={styles.signalsSection}>
@@ -975,5 +1195,109 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Inter_500Medium",
     color: C.whiteMedium,
+  },
+  strategySection: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  strategySectionTitle: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: C.whiteLow,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  strategyRow: {
+    flexDirection: "row",
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  strategyBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 9,
+    borderRadius: 9,
+    gap: 6,
+  },
+  strategyBtnActive: {
+    backgroundColor: C.tint,
+  },
+  strategyLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: C.whiteMedium,
+  },
+  strategyLabelActive: {
+    color: C.navy,
+  },
+  strategyCard: {
+    backgroundColor: C.card,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    gap: 10,
+  },
+  strategyCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 2,
+  },
+  strategyDetailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  strategyDetailLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: C.whiteLow,
+  },
+  strategyDetailValue: {
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
+    color: C.white,
+  },
+  strategyTimingBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: C.surface,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  strategyTimingText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: C.whiteMedium,
+    lineHeight: 18,
+  },
+  strategyInsightBox: {
+    backgroundColor: C.surface,
+    borderRadius: 10,
+    padding: 12,
+    gap: 4,
+  },
+  strategyInsightLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: C.whiteLow,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  strategyInsightText: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: C.whiteMedium,
+    lineHeight: 18,
   },
 });
