@@ -228,6 +228,8 @@ export const DiscoverStocksResponse = zod.object({
         stopLoss: zod.string(),
         timeframe: zod.string(),
         rationale: zod.string(),
+        expectedProfitPercent: zod.number(),
+        riskRewardRatio: zod.number(),
       }),
     }),
   ),

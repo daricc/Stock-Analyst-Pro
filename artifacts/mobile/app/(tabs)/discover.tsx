@@ -28,6 +28,8 @@ interface ProfitStrategy {
   stopLoss: string;
   timeframe: string;
   rationale: string;
+  expectedProfitPercent: number;
+  riskRewardRatio: number;
 }
 
 interface DiscoveredStock {
@@ -109,6 +111,11 @@ function MarketMoodBar({ mood, themes }: { mood: string; themes: string[] }) {
 
 function StrategyCard({ strategy }: { strategy: ProfitStrategy }) {
   const actionCfg = ACTION_CONFIG[strategy.action] ?? ACTION_CONFIG.WATCH;
+  const isShortOrSell = strategy.action === "SHORT" || strategy.action === "SELL";
+  const profitColor = isShortOrSell ? "#FF4D6A" : "#00D084";
+  const profitBg = isShortOrSell ? "rgba(255,77,106,0.12)" : "rgba(0,208,132,0.12)";
+  const profitPrefix = isShortOrSell ? "▼ " : "▲ ";
+
   return (
     <View style={styles.strategyCard}>
       <View style={styles.strategyHeader}>
@@ -117,6 +124,24 @@ function StrategyCard({ strategy }: { strategy: ProfitStrategy }) {
         </View>
         <Text style={styles.strategyTimeframe}>{strategy.timeframe}</Text>
       </View>
+
+      {strategy.expectedProfitPercent > 0 && (
+        <View style={[styles.profitHighlight, { backgroundColor: profitBg, borderColor: profitColor + "40" }]}>
+          <View style={styles.profitHighlightLeft}>
+            <Text style={[styles.profitHighlightLabel]}>Expected Profit</Text>
+            <Text style={[styles.profitHighlightValue, { color: profitColor }]}>
+              {profitPrefix}{strategy.expectedProfitPercent.toFixed(1)}%
+            </Text>
+          </View>
+          {strategy.riskRewardRatio > 0 && (
+            <View style={styles.profitHighlightRight}>
+              <Text style={styles.profitHighlightLabel}>Risk / Reward</Text>
+              <Text style={styles.rrValue}>1 : {strategy.riskRewardRatio.toFixed(1)}</Text>
+            </View>
+          )}
+        </View>
+      )}
+
       <View style={styles.strategyGrid}>
         <View style={styles.strategyItem}>
           <Text style={styles.strategyLabel}>Entry</Text>
@@ -202,6 +227,23 @@ function DiscoverCard({ item }: { item: DiscoveredStock }) {
         <Text style={styles.strategyToggleText}>
           {expanded ? "Hide Strategy" : "View Profit Strategy"}
         </Text>
+        {!expanded && item.profitStrategy.expectedProfitPercent > 0 && (
+          <View style={[
+            styles.profitMiniTag,
+            (item.profitStrategy.action === "SHORT" || item.profitStrategy.action === "SELL")
+              ? { backgroundColor: "rgba(255,77,106,0.15)" }
+              : { backgroundColor: "rgba(0,208,132,0.15)" }
+          ]}>
+            <Text style={[
+              styles.profitMiniText,
+              (item.profitStrategy.action === "SHORT" || item.profitStrategy.action === "SELL")
+                ? { color: "#FF4D6A" }
+                : { color: "#00D084" }
+            ]}>
+              +{item.profitStrategy.expectedProfitPercent.toFixed(1)}%
+            </Text>
+          </View>
+        )}
         <Feather name={expanded ? "chevron-up" : "chevron-down"} size={14} color={C.tint} />
       </Pressable>
 
@@ -576,6 +618,48 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.06)",
+  },
+  profitMiniTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginLeft: "auto" as any,
+    marginRight: 6,
+  },
+  profitMiniText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  profitHighlight: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 14,
+  },
+  profitHighlightLeft: {
+    flex: 1,
+  },
+  profitHighlightRight: {
+    alignItems: "flex-end",
+  },
+  profitHighlightLabel: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.5)",
+    marginBottom: 2,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.5,
+  },
+  profitHighlightValue: {
+    fontSize: 26,
+    fontWeight: "800",
+  },
+  rrValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   strategyHeader: {
     flexDirection: "row",

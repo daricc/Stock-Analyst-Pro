@@ -217,6 +217,8 @@ export interface ProfitStrategy {
   stopLoss: string;
   timeframe: string;
   rationale: string;
+  expectedProfitPercent: number;
+  riskRewardRatio: number;
 }
 
 export interface DiscoveredStock {

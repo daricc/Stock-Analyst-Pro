@@ -485,6 +485,8 @@ interface DiscoveredPick {
     stopLoss: string;
     timeframe: string;
     rationale: string;
+    expectedProfitPercent: number;
+    riskRewardRatio: number;
   };
 }
 
@@ -564,10 +566,12 @@ Respond with ONLY valid JSON (no markdown), in this exact format:
       "profitStrategy": {
         "action": "BUY" | "SELL" | "SHORT" | "HOLD" | "WATCH",
         "entry": "<specific entry price or condition, e.g. '$185.50 on pullback to support' or 'At market open'>",
-        "target": "<specific profit target, e.g. '$205 (+10.5%)'>",
-        "stopLoss": "<specific stop loss, e.g. '$175 (-5.7%)'>",
+        "target": "<specific profit target price, e.g. '$205.00'>",
+        "stopLoss": "<specific stop loss price, e.g. '$175.00'>",
         "timeframe": "<holding period, e.g. '2-4 weeks' or 'Swing trade 3-5 days'>",
-        "rationale": "<1-2 sentence reasoning for this strategy>"
+        "rationale": "<1-2 sentence reasoning for this strategy>",
+        "expectedProfitPercent": <positive number representing expected profit %, e.g. 10.5 for a 10.5% gain. For SHORT/SELL actions, this is the expected downside capture %>,
+        "riskRewardRatio": <number like 2.1 representing risk/reward, e.g. 2.1 means you risk 1 to make 2.1>
       }
     }
   ],
@@ -639,6 +643,8 @@ RULES:
             stopLoss: profitStrat["stopLoss"] ?? "",
             timeframe: profitStrat["timeframe"] ?? "",
             rationale: profitStrat["rationale"] ?? "",
+            expectedProfitPercent: parseFloat(String(profitStrat["expectedProfitPercent"] ?? "0")) || 0,
+            riskRewardRatio: parseFloat(String(profitStrat["riskRewardRatio"] ?? "0")) || 0,
           },
         };
       });
@@ -662,6 +668,8 @@ RULES:
           stopLoss: `$${(t.price * 0.95).toFixed(2)}`,
           timeframe: "Monitor",
           rationale: "Awaiting full AI analysis.",
+          expectedProfitPercent: 5,
+          riskRewardRatio: 1.0,
         },
       }));
       discoveries.push(...fallbackPicks);
