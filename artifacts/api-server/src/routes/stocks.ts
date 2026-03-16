@@ -3,8 +3,8 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 
 const router: IRouter = Router();
 
-const ALPHA_VANTAGE_BASE = "https://www.alphavantage.co/query";
 const YAHOO_BASE = "https://query1.finance.yahoo.com";
+const YAHOO_SCREENER_BASE = "https://query2.finance.yahoo.com";
 
 async function fetchYahooQuote(symbol: string) {
   const url = `${YAHOO_BASE}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
@@ -157,8 +157,8 @@ router.get("/stocks/search", async (req, res) => {
   try {
     const data = await fetchYahooSearch(q);
     const quotes = ((data["quotes"] as Record<string, unknown>[]) ?? [])
-      .filter((q: Record<string, unknown>) => q["quoteType"] === "EQUITY" || q["quoteType"] === "ETF")
-      .slice(0, 6)
+      .filter((q: Record<string, unknown>) => q["quoteType"] === "EQUITY" || q["quoteType"] === "ETF" || q["quoteType"] === "CRYPTOCURRENCY")
+      .slice(0, 8)
       .map((q: Record<string, unknown>) => ({
         symbol: q["symbol"] as string,
         name: (q["longname"] as string) ?? (q["shortname"] as string) ?? (q["symbol"] as string),
@@ -393,6 +393,317 @@ Be specific and data-driven. Base your analysis on the provided data. Provide re
   } catch (err) {
     console.error("Analysis error:", err);
     res.status(500).json({ error: "Failed to analyze stock" });
+  }
+});
+
+async function fetchYahooTrending(): Promise<Record<string, unknown>[]> {
+  try {
+    const url = `${YAHOO_BASE}/v1/finance/trending/US?count=10`;
+    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+    if (!res.ok) return [];
+    const data = (await res.json()) as Record<string, unknown>;
+    const financeRes = (data["finance"] as Record<string, unknown>)?.["result"] as Record<string, unknown>[] | undefined;
+    if (!financeRes || financeRes.length === 0) return [];
+    const quotes = financeRes[0]["quotes"] as Record<string, unknown>[] | undefined;
+    return quotes ?? [];
+  } catch {
+    return [];
+  }
+}
+
+async function fetchYahooScreener(scrId: string, count = 8): Promise<Record<string, unknown>[]> {
+  try {
+    const url = `${YAHOO_SCREENER_BASE}/v1/finance/screener/predefined/saved?formatted=false&scrIds=${scrId}&count=${count}`;
+    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+    if (!res.ok) return [];
+    const data = (await res.json()) as Record<string, unknown>;
+    const financeRes = (data["finance"] as Record<string, unknown>)?.["result"] as Record<string, unknown>[] | undefined;
+    if (!financeRes || financeRes.length === 0) return [];
+    const quotes = financeRes[0]["quotes"] as Record<string, unknown>[] | undefined;
+    return quotes ?? [];
+  } catch {
+    return [];
+  }
+}
+
+async function fetchSingleQuoteViaChart(symbol: string): Promise<Record<string, unknown> | null> {
+  try {
+    const data = await fetchYahooQuote(symbol);
+    const chart = data as Record<string, unknown>;
+    const result = (chart["chart"] as Record<string, unknown>)?.["result"] as Record<string, unknown>[] | null;
+    if (!result || result.length === 0) return null;
+    const meta = result[0]["meta"] as Record<string, unknown>;
+    return {
+      symbol: (meta["symbol"] as string) ?? symbol,
+      longName: (meta["longName"] as string) ?? null,
+      shortName: (meta["shortName"] as string) ?? null,
+      regularMarketPrice: (meta["regularMarketPrice"] as number) ?? 0,
+      regularMarketChange: ((meta["regularMarketPrice"] as number) ?? 0) - ((meta["chartPreviousClose"] as number) ?? (meta["regularMarketPrice"] as number) ?? 0),
+      regularMarketChangePercent: (() => {
+        const price = (meta["regularMarketPrice"] as number) ?? 0;
+        const prev = (meta["chartPreviousClose"] as number) ?? price;
+        return prev !== 0 ? ((price - prev) / prev) * 100 : 0;
+      })(),
+      regularMarketVolume: (meta["regularMarketVolume"] as number) ?? 0,
+      marketCap: (meta["marketCap"] as number) ?? 0,
+      quoteType: (meta["instrumentType"] as string) ?? ((symbol.includes("-USD") || symbol.includes("-BTC")) ? "CRYPTOCURRENCY" : "EQUITY"),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchMultiQuote(symbols: string[]): Promise<Record<string, Record<string, unknown>>> {
+  if (symbols.length === 0) return {};
+  const batchSize = 22;
+  const map: Record<string, Record<string, unknown>> = {};
+  for (let i = 0; i < symbols.length; i += batchSize) {
+    const batch = symbols.slice(i, i + batchSize);
+    const results = await Promise.all(batch.map((s) => fetchSingleQuoteViaChart(s)));
+    for (let j = 0; j < batch.length; j++) {
+      if (results[j]) map[batch[j]] = results[j]!;
+    }
+  }
+  return map;
+}
+
+interface DiscoveredPick {
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  category: string;
+  assetType: string;
+  sentiment: string;
+  signalSource: string;
+  aiSummary: string;
+  profitStrategy: {
+    action: string;
+    entry: string;
+    target: string;
+    stopLoss: string;
+    timeframe: string;
+    rationale: string;
+  };
+}
+
+const CRYPTO_SYMBOLS = ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "ADA-USD", "DOGE-USD", "AVAX-USD", "DOT-USD"];
+
+const TRENDING_STOCKS = ["NVDA", "TSLA", "AAPL", "MSFT", "AMZN", "META", "GOOGL", "AMD", "PLTR", "COIN"];
+const VOLATILE_STOCKS = ["GME", "MARA", "RIOT", "SOFI"];
+
+let discoverCache: { data: unknown; timestamp: number } | null = null;
+let discoverInFlight: Promise<unknown> | null = null;
+const DISCOVER_CACHE_TTL = 3 * 60 * 1000;
+
+const VALID_CATEGORIES = new Set(["trending", "gainers", "movers", "crypto", "ai_pick"]);
+const VALID_SENTIMENTS = new Set(["BULLISH", "BEARISH", "NEUTRAL"]);
+const VALID_ACTIONS = new Set(["BUY", "SELL", "SHORT", "HOLD", "WATCH"]);
+
+async function generateDiscoverData() {
+    const allSymbols = [...new Set([...TRENDING_STOCKS, ...VOLATILE_STOCKS, ...CRYPTO_SYMBOLS])];
+    const quoteMap = await fetchMultiQuote(allSymbols);
+
+    type TickerInfo = { symbol: string; name: string; price: number; change: number; changePercent: number; volume: number; marketCap: number; category: string; assetType: string };
+    const tickers: TickerInfo[] = [];
+
+    const buildTicker = (sym: string, cat: string): TickerInfo | null => {
+      const q = quoteMap[sym];
+      if (!q || !(q["regularMarketPrice"] as number)) return null;
+      return {
+        symbol: sym,
+        name: (q["longName"] as string) ?? (q["shortName"] as string) ?? sym,
+        price: (q["regularMarketPrice"] as number) ?? 0,
+        change: (q["regularMarketChange"] as number) ?? 0,
+        changePercent: (q["regularMarketChangePercent"] as number) ?? 0,
+        volume: (q["regularMarketVolume"] as number) ?? 0,
+        marketCap: (q["marketCap"] as number) ?? 0,
+        category: cat,
+        assetType: (q["quoteType"] as string) === "CRYPTOCURRENCY" ? "crypto" : "stock",
+      };
+    };
+
+    for (const sym of TRENDING_STOCKS) {
+      const t = buildTicker(sym, "trending");
+      if (t) tickers.push(t);
+    }
+    for (const sym of VOLATILE_STOCKS) {
+      if (tickers.some((t) => t.symbol === sym)) continue;
+      const t = buildTicker(sym, "movers");
+      if (t) tickers.push(t);
+    }
+    for (const sym of CRYPTO_SYMBOLS) {
+      if (tickers.some((t) => t.symbol === sym)) continue;
+      const t = buildTicker(sym, "crypto");
+      if (t) { t.assetType = "crypto"; tickers.push(t); }
+    }
+
+    const sorted = [...tickers].sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent));
+    const topGainers = sorted.filter((t) => t.changePercent > 0).slice(0, 4);
+    for (const g of topGainers) g.category = "gainers";
+
+    const tickerSummary = tickers.map((t) =>
+      `${t.symbol} (${t.name}): $${t.price.toFixed(2)}, ${t.changePercent >= 0 ? "+" : ""}${t.changePercent.toFixed(2)}%, vol ${(t.volume / 1e6).toFixed(1)}M, cap $${(t.marketCap / 1e9).toFixed(1)}B, category: ${t.category}, type: ${t.assetType}`
+    ).join("\n");
+
+    const prompt = `You are an elite market strategist and stock/crypto analyst. Analyze the following market data — trending tickers, biggest movers, and crypto — and select the top 12 most interesting opportunities. For each pick, provide a sentiment assessment, a concise AI insight explaining WHY this is notable right now, and a concrete PROFIT STRATEGY telling the user exactly how to trade it.
+
+MARKET DATA:
+${tickerSummary}
+
+Respond with ONLY valid JSON (no markdown), in this exact format:
+{
+  "picks": [
+    {
+      "symbol": "<ticker>",
+      "category": "trending" | "gainers" | "movers" | "crypto" | "ai_pick",
+      "sentiment": "BULLISH" | "BEARISH" | "NEUTRAL",
+      "signalSource": "<1-line description of the signal, e.g. 'Top gainer +8.5% on heavy volume' or 'Breaking above 50-day MA'>",
+      "aiSummary": "<2-3 sentence insight about why this stock/crypto is interesting right now, mentioning catalysts, news themes, or technical patterns>",
+      "profitStrategy": {
+        "action": "BUY" | "SELL" | "SHORT" | "HOLD" | "WATCH",
+        "entry": "<specific entry price or condition, e.g. '$185.50 on pullback to support' or 'At market open'>",
+        "target": "<specific profit target, e.g. '$205 (+10.5%)'>",
+        "stopLoss": "<specific stop loss, e.g. '$175 (-5.7%)'>",
+        "timeframe": "<holding period, e.g. '2-4 weeks' or 'Swing trade 3-5 days'>",
+        "rationale": "<1-2 sentence reasoning for this strategy>"
+      }
+    }
+  ],
+  "marketMood": "<1-2 sentence overall market assessment>",
+  "topHeadlineThemes": ["<theme 1>", "<theme 2>", "<theme 3>"]
+}
+
+RULES:
+- Select a MIX of stocks AND crypto (at least 2-3 crypto picks)
+- Rank by how actionable and interesting each pick is
+- Be specific with prices — use actual numbers from the data
+- Each profit strategy must include concrete entry, target, and stop-loss levels
+- Include at least one bearish/short opportunity if data supports it
+- signalSource should be SHORT — just the key signal in a few words
+- aiSummary should be INSIGHTFUL — not just restating the price change`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-5.2",
+      max_completion_tokens: 4000,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: "You are a professional market strategist. Respond only with valid JSON, no markdown formatting." },
+        { role: "user", content: prompt },
+      ],
+    });
+
+    const rawContent = completion.choices[0]?.message?.content ?? "{}";
+    const content = rawContent.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+    let aiResult: Record<string, unknown>;
+    try {
+      aiResult = JSON.parse(content) as Record<string, unknown>;
+    } catch {
+      try {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        aiResult = jsonMatch ? (JSON.parse(jsonMatch[0]) as Record<string, unknown>) : {};
+      } catch {
+        console.error("Failed to parse discover AI response, using fallback");
+        aiResult = { picks: [] };
+      }
+    }
+
+    const knownSymbols = new Set(tickers.map((t) => t.symbol));
+
+    const aiPicks = (aiResult["picks"] as Record<string, unknown>[]) ?? [];
+    const discoveries: DiscoveredPick[] = aiPicks
+      .filter((pick) => knownSymbols.has(pick["symbol"] as string))
+      .map((pick) => {
+        const sym = pick["symbol"] as string;
+        const tickerData = tickers.find((t) => t.symbol === sym)!;
+        const profitStrat = (pick["profitStrategy"] as Record<string, string>) ?? {};
+        const rawCategory = pick["category"] as string;
+        const rawSentiment = pick["sentiment"] as string;
+        const rawAction = profitStrat["action"] as string;
+        return {
+          symbol: sym,
+          name: tickerData.name,
+          price: tickerData.price,
+          change: tickerData.change,
+          changePercent: tickerData.changePercent,
+          category: VALID_CATEGORIES.has(rawCategory) ? rawCategory : tickerData.category,
+          assetType: tickerData.assetType,
+          sentiment: VALID_SENTIMENTS.has(rawSentiment) ? rawSentiment : "NEUTRAL",
+          signalSource: (pick["signalSource"] as string) ?? "",
+          aiSummary: (pick["aiSummary"] as string) ?? "",
+          profitStrategy: {
+            action: VALID_ACTIONS.has(rawAction) ? rawAction : "WATCH",
+            entry: profitStrat["entry"] ?? "",
+            target: profitStrat["target"] ?? "",
+            stopLoss: profitStrat["stopLoss"] ?? "",
+            timeframe: profitStrat["timeframe"] ?? "",
+            rationale: profitStrat["rationale"] ?? "",
+          },
+        };
+      });
+
+    if (discoveries.length === 0) {
+      const fallbackPicks = sorted.slice(0, 8).map((t) => ({
+        symbol: t.symbol,
+        name: t.name,
+        price: t.price,
+        change: t.change,
+        changePercent: t.changePercent,
+        category: t.category,
+        assetType: t.assetType,
+        sentiment: t.changePercent > 1 ? "BULLISH" : t.changePercent < -1 ? "BEARISH" : "NEUTRAL" as string,
+        signalSource: `${t.changePercent >= 0 ? "+" : ""}${t.changePercent.toFixed(2)}% today`,
+        aiSummary: "AI analysis unavailable. Check back shortly.",
+        profitStrategy: {
+          action: "WATCH" as string,
+          entry: `$${t.price.toFixed(2)}`,
+          target: `$${(t.price * 1.05).toFixed(2)}`,
+          stopLoss: `$${(t.price * 0.95).toFixed(2)}`,
+          timeframe: "Monitor",
+          rationale: "Awaiting full AI analysis.",
+        },
+      }));
+      discoveries.push(...fallbackPicks);
+    }
+
+    return {
+      discoveries,
+      marketMood: (aiResult["marketMood"] as string) ?? "Market data available. AI analysis processing.",
+      topHeadlineThemes: (aiResult["topHeadlineThemes"] as string[]) ?? [],
+      generatedAt: new Date().toISOString(),
+    };
+}
+
+router.get("/stocks/discover", async (_req, res) => {
+  try {
+    if (discoverCache && Date.now() - discoverCache.timestamp < DISCOVER_CACHE_TTL) {
+      res.json(discoverCache.data);
+      return;
+    }
+
+    if (!discoverInFlight) {
+      discoverInFlight = generateDiscoverData()
+        .then((data) => {
+          discoverCache = { data, timestamp: Date.now() };
+          discoverInFlight = null;
+          return data;
+        })
+        .catch((err) => {
+          discoverInFlight = null;
+          throw err;
+        });
+    }
+
+    const data = await discoverInFlight;
+    res.json(data);
+  } catch (err) {
+    console.error("Discover error:", err);
+    if (discoverCache) {
+      res.json(discoverCache.data);
+    } else {
+      res.status(500).json({ error: "Failed to discover stocks" });
+    }
   }
 });
 

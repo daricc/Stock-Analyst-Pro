@@ -171,6 +171,75 @@ export interface StockAnalysis {
   generatedAt: string;
 }
 
+export type DiscoveredStockCategory =
+  (typeof DiscoveredStockCategory)[keyof typeof DiscoveredStockCategory];
+
+export const DiscoveredStockCategory = {
+  trending: "trending",
+  gainers: "gainers",
+  movers: "movers",
+  crypto: "crypto",
+  ai_pick: "ai_pick",
+} as const;
+
+export type DiscoveredStockAssetType =
+  (typeof DiscoveredStockAssetType)[keyof typeof DiscoveredStockAssetType];
+
+export const DiscoveredStockAssetType = {
+  stock: "stock",
+  crypto: "crypto",
+} as const;
+
+export type DiscoveredStockSentiment =
+  (typeof DiscoveredStockSentiment)[keyof typeof DiscoveredStockSentiment];
+
+export const DiscoveredStockSentiment = {
+  BULLISH: "BULLISH",
+  BEARISH: "BEARISH",
+  NEUTRAL: "NEUTRAL",
+} as const;
+
+export type ProfitStrategyAction =
+  (typeof ProfitStrategyAction)[keyof typeof ProfitStrategyAction];
+
+export const ProfitStrategyAction = {
+  BUY: "BUY",
+  SELL: "SELL",
+  SHORT: "SHORT",
+  HOLD: "HOLD",
+  WATCH: "WATCH",
+} as const;
+
+export interface ProfitStrategy {
+  action: ProfitStrategyAction;
+  entry: string;
+  target: string;
+  stopLoss: string;
+  timeframe: string;
+  rationale: string;
+}
+
+export interface DiscoveredStock {
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  category: DiscoveredStockCategory;
+  assetType: DiscoveredStockAssetType;
+  sentiment: DiscoveredStockSentiment;
+  signalSource: string;
+  aiSummary: string;
+  profitStrategy: ProfitStrategy;
+}
+
+export interface DiscoverResponse {
+  discoveries: DiscoveredStock[];
+  marketMood: string;
+  topHeadlineThemes: string[];
+  generatedAt: string;
+}
+
 export interface StockSearchResult {
   symbol: string;
   name: string;

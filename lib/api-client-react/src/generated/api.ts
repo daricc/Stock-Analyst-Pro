@@ -18,6 +18,7 @@ import type {
 
 import type {
   AnalyzeStockRequest,
+  DiscoverResponse,
   ErrorResponse,
   GetStockHistoryParams,
   GetStockQuoteParams,
@@ -390,6 +391,82 @@ export const useAnalyzeStock = <
 > => {
   return useMutation(getAnalyzeStockMutationOptions(options));
 };
+
+/**
+ * Returns AI-curated stock and crypto picks based on market trends, movers, and news analysis with profit strategies
+ * @summary Discover trending stocks and crypto
+ */
+export const getDiscoverStocksUrl = () => {
+  return `/api/stocks/discover`;
+};
+
+export const discoverStocks = async (
+  options?: RequestInit,
+): Promise<DiscoverResponse> => {
+  return customFetch<DiscoverResponse>(getDiscoverStocksUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getDiscoverStocksQueryKey = () => {
+  return [`/api/stocks/discover`] as const;
+};
+
+export const getDiscoverStocksQueryOptions = <
+  TData = Awaited<ReturnType<typeof discoverStocks>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof discoverStocks>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getDiscoverStocksQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof discoverStocks>>> = ({
+    signal,
+  }) => discoverStocks({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof discoverStocks>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type DiscoverStocksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof discoverStocks>>
+>;
+export type DiscoverStocksQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Discover trending stocks and crypto
+ */
+
+export function useDiscoverStocks<
+  TData = Awaited<ReturnType<typeof discoverStocks>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof discoverStocks>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getDiscoverStocksQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * Search for stocks by name or ticker symbol

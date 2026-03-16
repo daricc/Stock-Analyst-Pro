@@ -199,6 +199,44 @@ export const AnalyzeStockResponse = zod.object({
 });
 
 /**
+ * Returns AI-curated stock and crypto picks based on market trends, movers, and news analysis with profit strategies
+ * @summary Discover trending stocks and crypto
+ */
+export const DiscoverStocksResponse = zod.object({
+  discoveries: zod.array(
+    zod.object({
+      symbol: zod.string(),
+      name: zod.string(),
+      price: zod.number(),
+      change: zod.number(),
+      changePercent: zod.number(),
+      category: zod.enum([
+        "trending",
+        "gainers",
+        "movers",
+        "crypto",
+        "ai_pick",
+      ]),
+      assetType: zod.enum(["stock", "crypto"]),
+      sentiment: zod.enum(["BULLISH", "BEARISH", "NEUTRAL"]),
+      signalSource: zod.string(),
+      aiSummary: zod.string(),
+      profitStrategy: zod.object({
+        action: zod.enum(["BUY", "SELL", "SHORT", "HOLD", "WATCH"]),
+        entry: zod.string(),
+        target: zod.string(),
+        stopLoss: zod.string(),
+        timeframe: zod.string(),
+        rationale: zod.string(),
+      }),
+    }),
+  ),
+  marketMood: zod.string(),
+  topHeadlineThemes: zod.array(zod.string()),
+  generatedAt: zod.string(),
+});
+
+/**
  * Search for stocks by name or ticker symbol
  * @summary Search for stocks
  */

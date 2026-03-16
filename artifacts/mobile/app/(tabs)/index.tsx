@@ -33,9 +33,11 @@ const POPULAR_STOCKS = [
   { symbol: "NVDA", name: "NVIDIA Corporation", exchange: "NASDAQ", type: "EQUITY" },
   { symbol: "MSFT", name: "Microsoft Corp.", exchange: "NASDAQ", type: "EQUITY" },
   { symbol: "TSLA", name: "Tesla Inc.", exchange: "NASDAQ", type: "EQUITY" },
+  { symbol: "BTC-USD", name: "Bitcoin USD", exchange: "CCC", type: "CRYPTO" },
+  { symbol: "ETH-USD", name: "Ethereum USD", exchange: "CCC", type: "CRYPTO" },
+  { symbol: "SOL-USD", name: "Solana USD", exchange: "CCC", type: "CRYPTO" },
   { symbol: "AMZN", name: "Amazon.com Inc.", exchange: "NASDAQ", type: "EQUITY" },
   { symbol: "META", name: "Meta Platforms", exchange: "NASDAQ", type: "EQUITY" },
-  { symbol: "GOOGL", name: "Alphabet Inc.", exchange: "NASDAQ", type: "EQUITY" },
   { symbol: "SPY", name: "SPDR S&P 500 ETF", exchange: "NYSE", type: "ETF" },
 ];
 

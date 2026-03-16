@@ -8,6 +8,11 @@
 
 export * from "./analyzeStockRequest";
 export * from "./analyzeStockRequestInvestmentStrategy";
+export * from "./discoveredStock";
+export * from "./discoveredStockAssetType";
+export * from "./discoveredStockCategory";
+export * from "./discoveredStockSentiment";
+export * from "./discoverResponse";
 export * from "./entryStrategy";
 export * from "./errorResponse";
 export * from "./exitStrategy";
@@ -19,6 +24,8 @@ export * from "./healthStatus";
 export * from "./pricePoint";
 export * from "./priceRange";
 export * from "./priceTargets";
+export * from "./profitStrategy";
+export * from "./profitStrategyAction";
 export * from "./searchStocksParams";
 export * from "./shortSpecific";
 export * from "./signal";

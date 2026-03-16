@@ -95,6 +95,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StockAnalysis"
+  /stocks/discover:
+    get:
+      operationId: discoverStocks
+      tags: [stocks]
+      summary: Discover trending stocks and crypto
+      description: Returns AI-curated stock and crypto picks based on market trends, movers, and news analysis with profit strategies
+      responses:
+        "200":
+          description: Discovered stock picks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiscoverResponse"
   /stocks/search:
     get:
       operationId: searchStocks
@@ -418,6 +431,89 @@ components:
         - name
         - signal
         - detail
+    DiscoverResponse:
+      type: object
+      properties:
+        discoveries:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiscoveredStock"
+        marketMood:
+          type: string
+        topHeadlineThemes:
+          type: array
+          items:
+            type: string
+        generatedAt:
+          type: string
+      required:
+        - discoveries
+        - marketMood
+        - topHeadlineThemes
+        - generatedAt
+    DiscoveredStock:
+      type: object
+      properties:
+        symbol:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+        change:
+          type: number
+        changePercent:
+          type: number
+        category:
+          type: string
+          enum: [trending, gainers, movers, crypto, ai_pick]
+        assetType:
+          type: string
+          enum: [stock, crypto]
+        sentiment:
+          type: string
+          enum: [BULLISH, BEARISH, NEUTRAL]
+        signalSource:
+          type: string
+        aiSummary:
+          type: string
+        profitStrategy:
+          $ref: "#/components/schemas/ProfitStrategy"
+      required:
+        - symbol
+        - name
+        - price
+        - change
+        - changePercent
+        - category
+        - assetType
+        - sentiment
+        - signalSource
+        - aiSummary
+        - profitStrategy
+    ProfitStrategy:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: [BUY, SELL, SHORT, HOLD, WATCH]
+        entry:
+          type: string
+        target:
+          type: string
+        stopLoss:
+          type: string
+        timeframe:
+          type: string
+        rationale:
+          type: string
+      required:
+        - action
+        - entry
+        - target
+        - stopLoss
+        - timeframe
+        - rationale
     StockSearchResult:
       type: object
       properties:

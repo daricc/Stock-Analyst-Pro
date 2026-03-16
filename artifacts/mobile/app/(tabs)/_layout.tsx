@@ -16,6 +16,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "magnifyingglass", selected: "magnifyingglass" }} />
         <Label>Search</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="discover">
+        <Icon sf={{ default: "sparkles", selected: "sparkles" }} />
+        <Label>Discover</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="watchlist">
         <Icon sf={{ default: "star", selected: "star.fill" }} />
         <Label>Watchlist</Label>
@@ -69,6 +73,18 @@ function ClassicTabLayout() {
               <SymbolView name="magnifyingglass" tintColor={color} size={size} />
             ) : (
               <Feather name="search" size={size} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="discover"
+        options={{
+          title: "Discover",
+          tabBarIcon: ({ color, size }) =>
+            isIOS ? (
+              <SymbolView name="sparkles" tintColor={color} size={size} />
+            ) : (
+              <Feather name="compass" size={size} color={color} />
             ),
         }}
       />
