@@ -2,29 +2,29 @@ const palette = {
   emerald: "#00D084",
   emeraldDark: "#00A86B",
   emeraldLight: "#00FF9F",
-  emeraldMuted: "rgba(0, 208, 132, 0.12)",
-  emeraldBorder: "rgba(0, 208, 132, 0.25)",
+  emeraldMuted: "rgba(0, 208, 132, 0.15)",
+  emeraldBorder: "rgba(0, 208, 132, 0.35)",
 
-  red: "#FF3B5C",
-  redMuted: "rgba(255, 59, 92, 0.12)",
+  red: "#FF4D6A",
+  redMuted: "rgba(255, 77, 106, 0.15)",
 
-  amber: "#F59E0B",
-  amberMuted: "rgba(245, 158, 11, 0.12)",
+  amber: "#FFBA33",
+  amberMuted: "rgba(255, 186, 51, 0.15)",
 
-  navy: "#0A0F1E",
-  navyLight: "#0F1629",
-  navySurface: "#131D35",
-  navyCard: "#182040",
-  navyBorder: "rgba(255, 255, 255, 0.08)",
+  navy: "#0B1120",
+  navyLight: "#111B2E",
+  navySurface: "#1A2642",
+  navyCard: "#1E2D4D",
+  navyBorder: "rgba(255, 255, 255, 0.12)",
 
   white: "#FFFFFF",
-  whiteHigh: "rgba(255, 255, 255, 0.92)",
-  whiteMedium: "rgba(255, 255, 255, 0.6)",
-  whiteLow: "rgba(255, 255, 255, 0.35)",
-  whiteVeryLow: "rgba(255, 255, 255, 0.08)",
+  whiteHigh: "rgba(255, 255, 255, 0.95)",
+  whiteMedium: "rgba(255, 255, 255, 0.70)",
+  whiteLow: "rgba(255, 255, 255, 0.45)",
+  whiteVeryLow: "rgba(255, 255, 255, 0.10)",
 
-  blue: "#3B82F6",
-  blueMuted: "rgba(59, 130, 246, 0.15)",
+  blue: "#5B9BFF",
+  blueMuted: "rgba(91, 155, 255, 0.18)",
 };
 
 export default {
@@ -51,12 +51,19 @@ export default {
     neutralMuted: palette.amberMuted,
 
     border: palette.navyBorder,
-    separator: "rgba(255, 255, 255, 0.06)",
+    separator: "rgba(255, 255, 255, 0.08)",
 
     tabIconDefault: palette.whiteLow,
     tabIconSelected: palette.emerald,
 
     blue: palette.blue,
     blueMuted: palette.blueMuted,
+
+    navySurface: palette.navySurface,
+    navy: palette.navy,
+    whiteLow: palette.whiteLow,
+    whiteMedium: palette.whiteMedium,
+    white: palette.white,
+    whiteVeryLow: palette.whiteVeryLow,
   },
 };
