@@ -34,6 +34,26 @@ interface ProfitStrategy {
   riskRewardRatio: number;
 }
 
+interface DayTradePlaybook {
+  setup: string;
+  idealEntry: string;
+  scaling: string;
+  targetLevels: string[];
+  stopPlacement: string;
+  exitRules: string;
+  positionSizing: string;
+  redFlags: string[];
+  technicals: {
+    vwap: number;
+    support: number;
+    resistance: number;
+    relativeVolume: number;
+    momentumScore: number;
+    priceVsVwap: string;
+    intradayTrend: string;
+  };
+}
+
 interface DiscoveredStock {
   symbol: string;
   name: string;
@@ -46,6 +66,7 @@ interface DiscoveredStock {
   signalSource: string;
   aiSummary: string;
   profitStrategy: ProfitStrategy;
+  dayTradePlaybook?: DayTradePlaybook;
 }
 
 interface DiscoverResponse {
@@ -69,6 +90,7 @@ async function fetchDiscoveries(): Promise<DiscoverResponse> {
 }
 
 const CATEGORY_LABELS: Record<string, { label: string; icon: string; color: string }> = {
+  day_trade: { label: "Day Trades", icon: "clock", color: "#FF9500" },
   trending: { label: "Trending Now", icon: "trending-up", color: "#5B9BFF" },
   gainers: { label: "Top Gainers", icon: "arrow-up-circle", color: "#00D084" },
   movers: { label: "Big Movers", icon: "zap", color: "#FFBA33" },
@@ -163,6 +185,138 @@ function StrategyCard({ strategy }: { strategy: ProfitStrategy }) {
   );
 }
 
+function PlaybookCard({ playbook }: { playbook: DayTradePlaybook }) {
+  const trendColors: Record<string, string> = {
+    strong_up: "#00D084", up: "#00D084", flat: "#FFBA33", down: "#FF4D6A", strong_down: "#FF4D6A",
+  };
+  const trendLabels: Record<string, string> = {
+    strong_up: "Strong Up", up: "Up", flat: "Flat", down: "Down", strong_down: "Strong Down",
+  };
+  const vwapColor = playbook.technicals.priceVsVwap === "above" ? "#00D084" : playbook.technicals.priceVsVwap === "below" ? "#FF4D6A" : "#FFBA33";
+  const momentumColor = playbook.technicals.momentumScore > 20 ? "#00D084" : playbook.technicals.momentumScore < -20 ? "#FF4D6A" : "#FFBA33";
+
+  return (
+    <View style={pbStyles.container}>
+      <View style={pbStyles.header}>
+        <Feather name="book-open" size={14} color="#FF9500" />
+        <Text style={pbStyles.headerText}>HOW TO PLAY THIS TRADE</Text>
+      </View>
+
+      {playbook.technicals.vwap > 0 && (
+        <View style={pbStyles.techGrid}>
+          <View style={pbStyles.techItem}>
+            <Text style={pbStyles.techLabel}>VWAP</Text>
+            <Text style={[pbStyles.techValue, { color: vwapColor }]}>${playbook.technicals.vwap.toFixed(2)}</Text>
+            <Text style={[pbStyles.techTag, { color: vwapColor }]}>Price {playbook.technicals.priceVsVwap}</Text>
+          </View>
+          <View style={pbStyles.techItem}>
+            <Text style={pbStyles.techLabel}>Support</Text>
+            <Text style={[pbStyles.techValue, { color: "#FF4D6A" }]}>${playbook.technicals.support.toFixed(2)}</Text>
+          </View>
+          <View style={pbStyles.techItem}>
+            <Text style={pbStyles.techLabel}>Resistance</Text>
+            <Text style={[pbStyles.techValue, { color: "#00D084" }]}>${playbook.technicals.resistance.toFixed(2)}</Text>
+          </View>
+          <View style={pbStyles.techItem}>
+            <Text style={pbStyles.techLabel}>Rel. Volume</Text>
+            <Text style={pbStyles.techValue}>{playbook.technicals.relativeVolume.toFixed(1)}x</Text>
+          </View>
+          <View style={pbStyles.techItem}>
+            <Text style={pbStyles.techLabel}>Momentum</Text>
+            <Text style={[pbStyles.techValue, { color: momentumColor }]}>{playbook.technicals.momentumScore}</Text>
+          </View>
+          <View style={pbStyles.techItem}>
+            <Text style={pbStyles.techLabel}>Trend</Text>
+            <Text style={[pbStyles.techValue, { color: trendColors[playbook.technicals.intradayTrend] ?? "#FFBA33" }]}>
+              {trendLabels[playbook.technicals.intradayTrend] ?? "Flat"}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      <View style={pbStyles.section}>
+        <View style={pbStyles.stepRow}>
+          <View style={pbStyles.stepBadge}><Text style={pbStyles.stepNum}>1</Text></View>
+          <Text style={pbStyles.stepLabel}>SETUP</Text>
+        </View>
+        <Text style={pbStyles.stepText}>{playbook.setup}</Text>
+      </View>
+
+      <View style={pbStyles.section}>
+        <View style={pbStyles.stepRow}>
+          <View style={pbStyles.stepBadge}><Text style={pbStyles.stepNum}>2</Text></View>
+          <Text style={pbStyles.stepLabel}>ENTRY TRIGGER</Text>
+        </View>
+        <Text style={pbStyles.stepText}>{playbook.idealEntry}</Text>
+      </View>
+
+      <View style={pbStyles.section}>
+        <View style={pbStyles.stepRow}>
+          <View style={pbStyles.stepBadge}><Text style={pbStyles.stepNum}>3</Text></View>
+          <Text style={pbStyles.stepLabel}>SCALING PLAN</Text>
+        </View>
+        <Text style={pbStyles.stepText}>{playbook.scaling}</Text>
+      </View>
+
+      {playbook.targetLevels.length > 0 && (
+        <View style={pbStyles.section}>
+          <View style={pbStyles.stepRow}>
+            <View style={pbStyles.stepBadge}><Text style={pbStyles.stepNum}>4</Text></View>
+            <Text style={pbStyles.stepLabel}>PROFIT TARGETS</Text>
+          </View>
+          {playbook.targetLevels.map((level, i) => (
+            <View key={i} style={pbStyles.targetRow}>
+              <View style={pbStyles.targetDot} />
+              <Text style={[pbStyles.stepText, { color: "#00D084" }]}>{level}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <View style={pbStyles.section}>
+        <View style={pbStyles.stepRow}>
+          <View style={[pbStyles.stepBadge, { backgroundColor: "rgba(255,77,106,0.2)" }]}>
+            <Text style={[pbStyles.stepNum, { color: "#FF4D6A" }]}>5</Text>
+          </View>
+          <Text style={[pbStyles.stepLabel, { color: "#FF4D6A" }]}>STOP PLACEMENT</Text>
+        </View>
+        <Text style={pbStyles.stepText}>{playbook.stopPlacement}</Text>
+      </View>
+
+      <View style={pbStyles.section}>
+        <View style={pbStyles.stepRow}>
+          <View style={pbStyles.stepBadge}><Text style={pbStyles.stepNum}>6</Text></View>
+          <Text style={pbStyles.stepLabel}>EXIT RULES</Text>
+        </View>
+        <Text style={pbStyles.stepText}>{playbook.exitRules}</Text>
+      </View>
+
+      <View style={pbStyles.section}>
+        <View style={pbStyles.stepRow}>
+          <View style={pbStyles.stepBadge}><Text style={pbStyles.stepNum}>7</Text></View>
+          <Text style={pbStyles.stepLabel}>POSITION SIZING</Text>
+        </View>
+        <Text style={pbStyles.stepText}>{playbook.positionSizing}</Text>
+      </View>
+
+      {playbook.redFlags.length > 0 && (
+        <View style={pbStyles.redFlagSection}>
+          <View style={pbStyles.redFlagHeader}>
+            <Feather name="alert-triangle" size={13} color="#FF4D6A" />
+            <Text style={pbStyles.redFlagTitle}>RED FLAGS — DO NOT TRADE IF:</Text>
+          </View>
+          {playbook.redFlags.map((flag, i) => (
+            <View key={i} style={pbStyles.redFlagRow}>
+              <Text style={pbStyles.redFlagDot}>✕</Text>
+              <Text style={pbStyles.redFlagText}>{flag}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
 function DiscoverCard({ item }: { item: DiscoveredStock }) {
   const [expanded, setExpanded] = useState(false);
   const [showTrade, setShowTrade] = useState(false);
@@ -170,6 +324,7 @@ function DiscoverCard({ item }: { item: DiscoveredStock }) {
   const isPositive = item.changePercent >= 0;
   const sentimentCfg = SENTIMENT_CONFIG[item.sentiment] ?? SENTIMENT_CONFIG.NEUTRAL;
   const isCrypto = item.assetType === "crypto";
+  const isDayTrade = item.category === "day_trade";
   const existingPos = portfolio.positions[item.symbol];
 
   const handlePress = () => {
@@ -191,7 +346,13 @@ function DiscoverCard({ item }: { item: DiscoveredStock }) {
   };
 
   return (
-    <View style={styles.discoverCard}>
+    <View style={[styles.discoverCard, isDayTrade && styles.dayTradeCard]}>
+      {isDayTrade && (
+        <View style={styles.dayTradeBanner}>
+          <Feather name="clock" size={11} color="#FF9500" />
+          <Text style={styles.dayTradeBannerText}>INTRADAY — CLOSE BY END OF DAY</Text>
+        </View>
+      )}
       <Pressable onPress={handlePress} style={({ pressed }) => [pressed && { opacity: 0.85 }]}>
         <View style={styles.cardTopRow}>
           <View style={[styles.tickerBadge, isCrypto && styles.cryptoBadge]}>
@@ -232,10 +393,10 @@ function DiscoverCard({ item }: { item: DiscoveredStock }) {
         <Text style={styles.aiSummary}>{item.aiSummary}</Text>
       </Pressable>
 
-      <Pressable onPress={toggleExpand} style={styles.strategyToggle}>
-        <Feather name="target" size={14} color={C.tint} />
-        <Text style={styles.strategyToggleText}>
-          {expanded ? "Hide Strategy" : "View Profit Strategy"}
+      <Pressable onPress={toggleExpand} style={[styles.strategyToggle, isDayTrade && { borderTopColor: "rgba(255,149,0,0.15)" }]}>
+        <Feather name={isDayTrade ? "book-open" : "target"} size={14} color={isDayTrade ? "#FF9500" : C.tint} />
+        <Text style={[styles.strategyToggleText, isDayTrade && { color: "#FF9500" }]}>
+          {expanded ? (isDayTrade ? "Hide Playbook" : "Hide Strategy") : (isDayTrade ? "View Day Trade Playbook" : "View Profit Strategy")}
         </Text>
         {!expanded && item.profitStrategy.expectedProfitPercent > 0 && (
           <View style={[
@@ -258,6 +419,9 @@ function DiscoverCard({ item }: { item: DiscoveredStock }) {
       </Pressable>
 
       {expanded && <StrategyCard strategy={item.profitStrategy} />}
+      {expanded && isDayTrade && item.dayTradePlaybook && (
+        <PlaybookCard playbook={item.dayTradePlaybook} />
+      )}
 
       <View style={styles.tradeRow}>
         {existingPos && (
@@ -324,7 +488,7 @@ export default function DiscoverScreen() {
 
   const grouped = React.useMemo(() => {
     if (!data?.discoveries) return [];
-    const cats = ["trending", "gainers", "movers", "crypto", "ai_pick"];
+    const cats = ["day_trade", "trending", "gainers", "movers", "crypto", "ai_pick"];
     const groups: { category: string; items: DiscoveredStock[] }[] = [];
     for (const cat of cats) {
       const items = data.discoveries.filter((d) => d.category === cat);
@@ -385,7 +549,7 @@ export default function DiscoverScreen() {
         keyExtractor={(item, i) => {
           if (item.type === "mood") return "mood";
           if (item.type === "category") return `cat-${item.category}`;
-          return `stock-${item.item.symbol}`;
+          return `stock-${item.item.category}-${item.item.symbol}`;
         }}
         renderItem={({ item }) => {
           if (item.type === "mood" && data) {
@@ -526,6 +690,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
     overflow: "hidden",
+  },
+  dayTradeCard: {
+    borderColor: "rgba(255,149,0,0.45)",
+    borderWidth: 1.5,
+  },
+  dayTradeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(255,149,0,0.12)",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,149,0,0.2)",
+  },
+  dayTradeBannerText: {
+    color: "#FF9500",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.8,
   },
   cardTopRow: {
     flexDirection: "row",
@@ -806,5 +990,151 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
     color: C.navy,
+  },
+});
+
+const pbStyles = StyleSheet.create({
+  container: {
+    marginHorizontal: 14,
+    marginBottom: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,149,0,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,149,0,0.2)",
+    overflow: "hidden",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "rgba(255,149,0,0.1)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,149,0,0.15)",
+  },
+  headerText: {
+    color: "#FF9500",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  techGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    padding: 10,
+    gap: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
+  },
+  techItem: {
+    width: "30%",
+    alignItems: "center",
+    paddingVertical: 6,
+  },
+  techLabel: {
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  techValue: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  techTag: {
+    fontSize: 9,
+    fontWeight: "600",
+    marginTop: 1,
+  },
+  section: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.04)",
+  },
+  stepRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  stepBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,149,0,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepNum: {
+    color: "#FF9500",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  stepLabel: {
+    color: "#FF9500",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+  },
+  stepText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    lineHeight: 19,
+    paddingLeft: 28,
+  },
+  targetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingLeft: 28,
+    marginTop: 3,
+  },
+  targetDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: "#00D084",
+  },
+  redFlagSection: {
+    margin: 10,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,77,106,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,77,106,0.2)",
+  },
+  redFlagHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  redFlagTitle: {
+    color: "#FF4D6A",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  redFlagRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    marginTop: 3,
+    paddingLeft: 4,
+  },
+  redFlagDot: {
+    color: "#FF4D6A",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  redFlagText: {
+    color: "#FF4D6A",
+    fontSize: 12,
+    lineHeight: 17,
+    flex: 1,
   },
 });

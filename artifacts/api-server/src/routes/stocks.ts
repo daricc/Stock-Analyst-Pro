@@ -439,6 +439,10 @@ async function fetchSingleQuoteViaChart(symbol: string): Promise<Record<string, 
         return prev !== 0 ? ((price - prev) / prev) * 100 : 0;
       })(),
       regularMarketVolume: (meta["regularMarketVolume"] as number) ?? 0,
+      regularMarketDayHigh: (meta["regularMarketDayHigh"] as number) || ((meta["regularMarketPrice"] as number) ?? 0),
+      regularMarketDayLow: (meta["regularMarketDayLow"] as number) || ((meta["regularMarketPrice"] as number) ?? 0),
+      regularMarketOpen: (meta["regularMarketOpen"] as number) || ((meta["regularMarketPrice"] as number) ?? 0),
+      chartPreviousClose: (meta["chartPreviousClose"] as number) || ((meta["regularMarketPrice"] as number) ?? 0),
       marketCap: (meta["marketCap"] as number) ?? 0,
       quoteType: (meta["instrumentType"] as string) ?? ((symbol.includes("-USD") || symbol.includes("-BTC")) ? "CRYPTOCURRENCY" : "EQUITY"),
     };
@@ -463,6 +467,134 @@ async function fetchMultiQuote(symbols: string[]): Promise<Record<string, Record
   return map;
 }
 
+interface IntradayTechnicals {
+  symbol: string;
+  vwap: number;
+  support: number;
+  resistance: number;
+  relativeVolume: number;
+  momentumScore: number;
+  priceVsVwap: "above" | "below" | "at";
+  intradayTrend: "strong_up" | "up" | "flat" | "down" | "strong_down";
+  avgCandleRange: number;
+  dayTradeScore: number;
+}
+
+async function fetchIntradayCandles(symbol: string): Promise<{ closes: number[]; highs: number[]; lows: number[]; volumes: number[]; opens: number[] } | null> {
+  try {
+    const url = `${YAHOO_BASE}/v8/finance/chart/${encodeURIComponent(symbol)}?interval=5m&range=1d`;
+    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+    if (!res.ok) return null;
+    const data = (await res.json()) as Record<string, unknown>;
+    const result = ((data["chart"] as Record<string, unknown>)?.["result"] as Record<string, unknown>[]);
+    if (!result || result.length === 0) return null;
+    const indicators = (result[0]["indicators"] as Record<string, unknown>)?.["quote"] as Record<string, unknown>[];
+    if (!indicators || indicators.length === 0) return null;
+    const q = indicators[0];
+    const closes = ((q["close"] as (number | null)[]) ?? []).filter((v): v is number => v !== null);
+    const highs = ((q["high"] as (number | null)[]) ?? []).filter((v): v is number => v !== null);
+    const lows = ((q["low"] as (number | null)[]) ?? []).filter((v): v is number => v !== null);
+    const volumes = ((q["volume"] as (number | null)[]) ?? []).filter((v): v is number => v !== null);
+    const opens = ((q["open"] as (number | null)[]) ?? []).filter((v): v is number => v !== null);
+    if (closes.length < 3) return null;
+    return { closes, highs, lows, volumes, opens };
+  } catch {
+    return null;
+  }
+}
+
+function computeIntradayTechnicals(symbol: string, candles: { closes: number[]; highs: number[]; lows: number[]; volumes: number[]; opens: number[] }, ticker: { intradayRangePct: number; gapPct: number; changePercent: number; volume: number }): IntradayTechnicals {
+  const { closes, highs, lows, volumes } = candles;
+  const len = closes.length;
+
+  let vwapNum = 0;
+  let vwapDen = 0;
+  for (let i = 0; i < Math.min(len, volumes.length); i++) {
+    const typical = (highs[i] + lows[i] + closes[i]) / 3;
+    vwapNum += typical * volumes[i];
+    vwapDen += volumes[i];
+  }
+  const vwap = vwapDen > 0 ? vwapNum / vwapDen : closes[len - 1];
+
+  const recentCount = Math.min(12, len);
+  const recentHighs = highs.slice(-recentCount);
+  const recentLows = lows.slice(-recentCount);
+  const resistance = Math.max(...recentHighs);
+  const support = Math.min(...recentLows);
+
+  const totalVol = volumes.reduce((s, v) => s + v, 0);
+  const elapsedFraction = len / 78;
+  const relativeVolume = elapsedFraction > 0 ? (totalVol / elapsedFraction) / (ticker.volume || totalVol) : 1;
+
+  let momentum = 0;
+  const lookback = Math.min(6, len);
+  if (lookback >= 2) {
+    const recent = closes.slice(-lookback);
+    const oldAvg = (recent[0] + recent[1]) / 2;
+    const newAvg = (recent[recent.length - 1] + recent[recent.length - 2]) / 2;
+    momentum = oldAvg > 0 ? ((newAvg - oldAvg) / oldAvg) * 100 : 0;
+  }
+  const momentumScore = Math.round(Math.min(100, Math.max(-100, momentum * 20)));
+
+  const currentPrice = closes[len - 1];
+  const vwapDiff = vwap > 0 ? ((currentPrice - vwap) / vwap) * 100 : 0;
+  const priceVsVwap: "above" | "below" | "at" = vwapDiff > 0.15 ? "above" : vwapDiff < -0.15 ? "below" : "at";
+
+  let intradayTrend: "strong_up" | "up" | "flat" | "down" | "strong_down" = "flat";
+  const changeAbs = Math.abs(ticker.changePercent);
+  if (ticker.changePercent > 2) intradayTrend = "strong_up";
+  else if (ticker.changePercent > 0.5) intradayTrend = "up";
+  else if (ticker.changePercent < -2) intradayTrend = "strong_down";
+  else if (ticker.changePercent < -0.5) intradayTrend = "down";
+
+  let avgCandleRange = 0;
+  for (let i = 0; i < Math.min(len, highs.length, lows.length); i++) {
+    avgCandleRange += (highs[i] - lows[i]) / (lows[i] || 1);
+  }
+  avgCandleRange = len > 0 ? (avgCandleRange / len) * 100 : 0;
+
+  const dayTradeScore =
+    (ticker.intradayRangePct * 25) +
+    (Math.abs(ticker.gapPct) * 20) +
+    (Math.min(relativeVolume, 3) * 15) +
+    (changeAbs * 10) +
+    (avgCandleRange * 5) +
+    (Math.abs(momentumScore) / 100 * 10);
+
+  return {
+    symbol,
+    vwap: Math.round(vwap * 100) / 100,
+    support: Math.round(support * 100) / 100,
+    resistance: Math.round(resistance * 100) / 100,
+    relativeVolume: Math.round(relativeVolume * 100) / 100,
+    momentumScore,
+    priceVsVwap,
+    intradayTrend,
+    avgCandleRange: Math.round(avgCandleRange * 100) / 100,
+    dayTradeScore: Math.round(dayTradeScore * 100) / 100,
+  };
+}
+
+interface DayTradePlaybook {
+  setup: string;
+  idealEntry: string;
+  scaling: string;
+  targetLevels: string[];
+  stopPlacement: string;
+  exitRules: string;
+  positionSizing: string;
+  redFlags: string[];
+  technicals: {
+    vwap: number;
+    support: number;
+    resistance: number;
+    relativeVolume: number;
+    momentumScore: number;
+    priceVsVwap: string;
+    intradayTrend: string;
+  };
+}
+
 interface DiscoveredPick {
   symbol: string;
   name: string;
@@ -484,18 +616,19 @@ interface DiscoveredPick {
     expectedProfitPercent: number;
     riskRewardRatio: number;
   };
+  dayTradePlaybook?: DayTradePlaybook;
 }
 
 const CRYPTO_SYMBOLS = ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "ADA-USD", "DOGE-USD", "AVAX-USD", "DOT-USD"];
 
 const TRENDING_STOCKS = ["NVDA", "TSLA", "AAPL", "MSFT", "AMZN", "META", "GOOGL", "AMD", "PLTR", "COIN"];
-const VOLATILE_STOCKS = ["GME", "MARA", "RIOT", "SOFI"];
+const VOLATILE_STOCKS = ["GME", "MARA", "RIOT", "SOFI", "SMCI", "ARM", "SOXL", "TQQQ", "UVXY", "LABU"];
 
 let discoverCache: { data: unknown; timestamp: number } | null = null;
 let discoverInFlight: Promise<unknown> | null = null;
 const DISCOVER_CACHE_TTL = 8 * 60 * 1000;
 
-const VALID_CATEGORIES = new Set(["trending", "gainers", "movers", "crypto", "ai_pick"]);
+const VALID_CATEGORIES = new Set(["trending", "gainers", "movers", "crypto", "ai_pick", "day_trade"]);
 const VALID_SENTIMENTS = new Set(["BULLISH", "BEARISH", "NEUTRAL"]);
 const VALID_ACTIONS = new Set(["BUY", "SELL", "SHORT", "HOLD", "WATCH"]);
 
@@ -503,22 +636,33 @@ async function generateDiscoverData() {
     const allSymbols = [...new Set([...TRENDING_STOCKS, ...VOLATILE_STOCKS, ...CRYPTO_SYMBOLS])];
     const quoteMap = await fetchMultiQuote(allSymbols);
 
-    type TickerInfo = { symbol: string; name: string; price: number; change: number; changePercent: number; volume: number; marketCap: number; category: string; assetType: string };
+    type TickerInfo = { symbol: string; name: string; price: number; change: number; changePercent: number; volume: number; marketCap: number; category: string; assetType: string; intradayRangePct: number; gapPct: number; dayHigh: number; dayLow: number };
     const tickers: TickerInfo[] = [];
 
     const buildTicker = (sym: string, cat: string): TickerInfo | null => {
       const q = quoteMap[sym];
       if (!q || !(q["regularMarketPrice"] as number)) return null;
+      const price = (q["regularMarketPrice"] as number) ?? 0;
+      const open = (q["regularMarketOpen"] as number) || price;
+      const prevClose = (q["chartPreviousClose"] as number) || price;
+      const dayHigh = (q["regularMarketDayHigh"] as number) || price;
+      const dayLow = (q["regularMarketDayLow"] as number) || price;
+      const intradayRangePct = open > 0 ? ((dayHigh - dayLow) / open) * 100 : 0;
+      const gapPct = prevClose > 0 ? ((open - prevClose) / prevClose) * 100 : 0;
       return {
         symbol: sym,
         name: (q["longName"] as string) ?? (q["shortName"] as string) ?? sym,
-        price: (q["regularMarketPrice"] as number) ?? 0,
+        price,
         change: (q["regularMarketChange"] as number) ?? 0,
         changePercent: (q["regularMarketChangePercent"] as number) ?? 0,
         volume: (q["regularMarketVolume"] as number) ?? 0,
         marketCap: (q["marketCap"] as number) ?? 0,
         category: cat,
         assetType: (q["quoteType"] as string) === "CRYPTOCURRENCY" ? "crypto" : "stock",
+        intradayRangePct,
+        gapPct,
+        dayHigh,
+        dayLow,
       };
     };
 
@@ -541,33 +685,74 @@ async function generateDiscoverData() {
     const topGainers = sorted.filter((t) => t.changePercent > 0).slice(0, 4);
     for (const g of topGainers) g.category = "gainers";
 
+    const dayTradeCandidates = [...tickers]
+      .sort((a, b) => {
+        const scoreA = (a.intradayRangePct * 25) + (Math.abs(a.gapPct) * 20) + (Math.abs(a.changePercent) * 15);
+        const scoreB = (b.intradayRangePct * 25) + (Math.abs(b.gapPct) * 20) + (Math.abs(b.changePercent) * 15);
+        return scoreB - scoreA;
+      })
+      .slice(0, 5);
+
+    console.log("[Discover] Top day trade candidates:", dayTradeCandidates.map(t => `${t.symbol} (range:${t.intradayRangePct.toFixed(1)}%, gap:${t.gapPct.toFixed(1)}%)`).join(", "));
+
+    const intradayResults = await Promise.all(
+      dayTradeCandidates.map(async (t) => {
+        const candles = await fetchIntradayCandles(t.symbol);
+        if (!candles) return null;
+        return computeIntradayTechnicals(t.symbol, candles, t);
+      })
+    );
+    const techMap = new Map<string, IntradayTechnicals>();
+    for (const tech of intradayResults) {
+      if (tech) techMap.set(tech.symbol, tech);
+    }
+
     const tickerSummary = tickers.map((t) =>
-      `${t.symbol} (${t.name}): $${t.price.toFixed(2)}, ${t.changePercent >= 0 ? "+" : ""}${t.changePercent.toFixed(2)}%, vol ${(t.volume / 1e6).toFixed(1)}M, cap $${(t.marketCap / 1e9).toFixed(1)}B, category: ${t.category}, type: ${t.assetType}`
+      `${t.symbol} (${t.name}): $${t.price.toFixed(2)}, ${t.changePercent >= 0 ? "+" : ""}${t.changePercent.toFixed(2)}%, vol ${(t.volume / 1e6).toFixed(1)}M, cap $${(t.marketCap / 1e9).toFixed(1)}B, intraday_range: ${t.intradayRangePct.toFixed(2)}%, gap_from_prev_close: ${t.gapPct >= 0 ? "+" : ""}${t.gapPct.toFixed(2)}%, day_high: $${t.dayHigh.toFixed(2)}, day_low: $${t.dayLow.toFixed(2)}, category: ${t.category}, type: ${t.assetType}`
     ).join("\n");
 
-    const prompt = `You are an elite market strategist and stock/crypto analyst. Analyze the following market data — trending tickers, biggest movers, and crypto — and select the top 12 most interesting opportunities. For each pick, provide a sentiment assessment, a concise AI insight explaining WHY this is notable right now, and a concrete PROFIT STRATEGY telling the user exactly how to trade it.
+    const techSummary = dayTradeCandidates.map((t) => {
+      const tech = techMap.get(t.symbol);
+      if (!tech) return `${t.symbol}: no intraday data available`;
+      return `${t.symbol}: VWAP=$${tech.vwap.toFixed(2)}, Support=$${tech.support.toFixed(2)}, Resistance=$${tech.resistance.toFixed(2)}, RelVolume=${tech.relativeVolume.toFixed(1)}x, Momentum=${tech.momentumScore}/100, PriceVsVWAP=${tech.priceVsVwap}, Trend=${tech.intradayTrend}, AvgCandleRange=${tech.avgCandleRange.toFixed(2)}%, DayTradeScore=${tech.dayTradeScore.toFixed(0)}`;
+    }).join("\n");
+
+    const prompt = `You are an elite quantitative day trader and market strategist. Analyze the following market data and intraday technical analysis to select the top 14 opportunities. You MUST include 2-3 DAY TRADE picks based on the algorithmic analysis below — these are intraday setups to be opened AND closed within today's session. For every day trade pick, provide an extremely detailed playbook that a trader can follow step-by-step.
 
 MARKET DATA:
 ${tickerSummary}
+
+INTRADAY TECHNICAL ANALYSIS (for top day trade candidates by algorithmic score):
+${techSummary}
 
 Respond with ONLY valid JSON (no markdown), in this exact format:
 {
   "picks": [
     {
       "symbol": "<ticker>",
-      "category": "trending" | "gainers" | "movers" | "crypto" | "ai_pick",
+      "category": "trending" | "gainers" | "movers" | "crypto" | "ai_pick" | "day_trade",
       "sentiment": "BULLISH" | "BEARISH" | "NEUTRAL",
-      "signalSource": "<1-line description of the signal, e.g. 'Top gainer +8.5% on heavy volume' or 'Breaking above 50-day MA'>",
-      "aiSummary": "<2-3 sentence insight about why this stock/crypto is interesting right now, mentioning catalysts, news themes, or technical patterns>",
+      "signalSource": "<1-line description of the signal>",
+      "aiSummary": "<2-3 sentence insight>",
       "profitStrategy": {
         "action": "BUY" | "SELL" | "SHORT" | "HOLD" | "WATCH",
-        "entry": "<specific entry price or condition, e.g. '$185.50 on pullback to support' or 'At market open'>",
-        "target": "<specific profit target price, e.g. '$205.00'>",
-        "stopLoss": "<specific stop loss price, e.g. '$175.00'>",
-        "timeframe": "<holding period, e.g. '2-4 weeks' or 'Swing trade 3-5 days'>",
-        "rationale": "<1-2 sentence reasoning for this strategy>",
-        "expectedProfitPercent": <positive number representing expected profit %, e.g. 10.5 for a 10.5% gain. For SHORT/SELL actions, this is the expected downside capture %>,
-        "riskRewardRatio": <number like 2.1 representing risk/reward, e.g. 2.1 means you risk 1 to make 2.1>
+        "entry": "<specific entry price or condition>",
+        "target": "<specific profit target price>",
+        "stopLoss": "<specific stop loss price>",
+        "timeframe": "<holding period. For day_trade: 'Intraday — close by EOD'. For swings: e.g. '2-4 weeks'>",
+        "rationale": "<1-2 sentence reasoning>",
+        "expectedProfitPercent": <number>,
+        "riskRewardRatio": <number>
+      },
+      "dayTradePlaybook": {
+        "setup": "<precise trade setup description, e.g. 'VWAP reclaim + gap-up momentum' or 'Breakdown below intraday support with heavy volume'>",
+        "idealEntry": "<exact trigger, e.g. 'Enter LONG on first 5-min candle close above VWAP ($XXX.XX) with volume spike' or 'Enter SHORT on break below $XXX.XX support'>",
+        "scaling": "<how to scale in/out, e.g. 'Enter 50% at VWAP touch, add remaining 50% on first green 5-min candle above entry'>",
+        "targetLevels": ["$XXX.XX (intraday resistance)", "$XXX.XX (pre-market high / extended target)"],
+        "stopPlacement": "<exact stop with reasoning, e.g. 'Hard stop at $XXX.XX — below VWAP and intraday support. This is a $X.XX risk per share.'>",
+        "exitRules": "<step-by-step exit plan: 'Take 50% profit at Target 1. Move stop to breakeven. Trail remaining with 5-min candle lows. Close ALL by 3:45 PM ET regardless.'>",
+        "positionSizing": "<risk-based sizing, e.g. 'Risk 1% of $100K account = $1,000 max loss. Entry $XXX.XX to stop $XXX.XX = $X.XX risk/share → max XX shares.'>",
+        "redFlags": ["<condition that invalidates this trade, e.g. 'If SPY breaks below $XXX, all longs off'>", "<another red flag>"]
       }
     }
   ],
@@ -575,18 +760,21 @@ Respond with ONLY valid JSON (no markdown), in this exact format:
   "topHeadlineThemes": ["<theme 1>", "<theme 2>", "<theme 3>"]
 }
 
-RULES:
-- Select a MIX of stocks AND crypto (at least 2-3 crypto picks)
-- Rank by how actionable and interesting each pick is
+CRITICAL RULES:
+- ALWAYS include exactly 2-3 picks with category "day_trade" — ONLY from the symbols in the INTRADAY TECHNICAL ANALYSIS section. Pick the ones with highest DayTradeScore
+- dayTradePlaybook is REQUIRED for day_trade picks (omit it for non day_trade picks)
+- For day_trade picks: use the computed VWAP, support, resistance from the technical data as the basis for entry/target/stop levels. NEVER make up random price levels — anchor to the real computed technicals
+- day_trade timeframe must be "Intraday — close by EOD"
+- Position sizing should assume a $100K paper trading account
+- Select a MIX of stocks AND crypto (at least 2-3 crypto picks) for non day_trade categories
 - Be specific with prices — use actual numbers from the data
-- Each profit strategy must include concrete entry, target, and stop-loss levels
 - Include at least one bearish/short opportunity if data supports it
 - signalSource should be SHORT — just the key signal in a few words
 - aiSummary should be INSIGHTFUL — not just restating the price change`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-5.2",
-      max_completion_tokens: 4000,
+      max_completion_tokens: 6000,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: "You are a professional market strategist. Respond only with valid JSON, no markdown formatting." },
@@ -621,13 +809,15 @@ RULES:
         const rawCategory = pick["category"] as string;
         const rawSentiment = pick["sentiment"] as string;
         const rawAction = profitStrat["action"] as string;
-        return {
+        const category = VALID_CATEGORIES.has(rawCategory) ? rawCategory : tickerData.category;
+
+        const result: DiscoveredPick = {
           symbol: sym,
           name: tickerData.name,
           price: tickerData.price,
           change: tickerData.change,
           changePercent: tickerData.changePercent,
-          category: VALID_CATEGORIES.has(rawCategory) ? rawCategory : tickerData.category,
+          category,
           assetType: tickerData.assetType,
           sentiment: VALID_SENTIMENTS.has(rawSentiment) ? rawSentiment : "NEUTRAL",
           signalSource: (pick["signalSource"] as string) ?? "",
@@ -643,6 +833,32 @@ RULES:
             riskRewardRatio: parseFloat(String(profitStrat["riskRewardRatio"] ?? "0")) || 0,
           },
         };
+
+        if (category === "day_trade") {
+          const aiPlaybook = (pick["dayTradePlaybook"] as Record<string, unknown>) ?? {};
+          const tech = techMap.get(sym);
+          result.dayTradePlaybook = {
+            setup: (aiPlaybook["setup"] as string) ?? "Intraday momentum trade",
+            idealEntry: (aiPlaybook["idealEntry"] as string) ?? "",
+            scaling: (aiPlaybook["scaling"] as string) ?? "Enter full position at trigger",
+            targetLevels: (aiPlaybook["targetLevels"] as string[]) ?? [],
+            stopPlacement: (aiPlaybook["stopPlacement"] as string) ?? "",
+            exitRules: (aiPlaybook["exitRules"] as string) ?? "Close all positions by 3:45 PM ET.",
+            positionSizing: (aiPlaybook["positionSizing"] as string) ?? "",
+            redFlags: (aiPlaybook["redFlags"] as string[]) ?? [],
+            technicals: {
+              vwap: tech?.vwap ?? 0,
+              support: tech?.support ?? 0,
+              resistance: tech?.resistance ?? 0,
+              relativeVolume: tech?.relativeVolume ?? 1,
+              momentumScore: tech?.momentumScore ?? 0,
+              priceVsVwap: tech?.priceVsVwap ?? "at",
+              intradayTrend: tech?.intradayTrend ?? "flat",
+            },
+          };
+        }
+
+        return result;
       });
 
     if (discoveries.length === 0) {
