@@ -416,7 +416,7 @@ async function fetchYahooScreener(scrId: string, count = 8): Promise<Record<stri
 }
 
 const singleQuoteCache = new Map<string, { data: Record<string, unknown>; ts: number }>();
-const SINGLE_QUOTE_TTL = 60 * 1000;
+const SINGLE_QUOTE_TTL = 10 * 1000;
 
 async function fetchSingleQuoteViaChart(symbol: string): Promise<Record<string, unknown> | null> {
   const cached = singleQuoteCache.get(symbol);

@@ -40,7 +40,7 @@ function WatchlistCard({ symbol, name, onRemove }: { symbol: string; name: strin
   const { data: quote, isLoading } = useQuery({
     queryKey: ["quote", symbol],
     queryFn: () => fetchQuote(symbol),
-    refetchInterval: 60000,
+    refetchInterval: 15000,
   });
 
   const isPositive = (quote?.changePercent ?? 0) >= 0;

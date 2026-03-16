@@ -277,6 +277,8 @@ export default function StockDetailScreen() {
     queryKey: ["quote", symbol],
     queryFn: () => fetchQuote(symbol ?? ""),
     enabled: !!symbol,
+    refetchInterval: 10000,
+    staleTime: 8000,
   });
 
   const { data: history, isLoading: historyLoading } = useQuery({
