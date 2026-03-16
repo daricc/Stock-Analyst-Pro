@@ -18,6 +18,8 @@ import Svg, { Polyline, Defs, LinearGradient, Stop, Polygon } from "react-native
 import Colors from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
 import { useWatchlist } from "@/contexts/watchlist-context";
+import { usePortfolio } from "@/contexts/portfolio-context";
+import { TradeModal } from "@/components/TradeModal";
 
 const C = Colors.light;
 
@@ -265,6 +267,9 @@ export default function StockDetailScreen() {
 
   const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useWatchlist();
   const inWatchlist = isInWatchlist(symbol ?? "");
+  const { portfolio } = usePortfolio();
+  const [showTrade, setShowTrade] = useState(false);
+  const existingPos = portfolio.positions[symbol ?? ""];
 
   const webTopPad = Platform.OS === "web" ? 67 : 0;
 
@@ -350,6 +355,36 @@ export default function StockDetailScreen() {
                   </Text>
                 </View>
                 <Text style={styles.exchangeText}>{quote.exchange} · {quote.currency}</Text>
+              </View>
+
+              <View style={styles.tradeActionRow}>
+                {existingPos && (
+                  <View style={[
+                    styles.positionPill,
+                    { backgroundColor: existingPos.direction === "long" ? "rgba(0,208,132,0.15)" : "rgba(255,77,106,0.15)" },
+                  ]}>
+                    <Feather
+                      name={existingPos.direction === "long" ? "trending-up" : "trending-down"}
+                      size={12}
+                      color={existingPos.direction === "long" ? "#00D084" : "#FF4D6A"}
+                    />
+                    <Text style={[
+                      styles.positionPillText,
+                      { color: existingPos.direction === "long" ? "#00D084" : "#FF4D6A" },
+                    ]}>
+                      {existingPos.direction === "long" ? "LONG" : "SHORT"} · {existingPos.shares.toFixed(4)} sh
+                    </Text>
+                  </View>
+                )}
+                <Pressable
+                  style={styles.tradeBtn}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowTrade(true); }}
+                >
+                  <Feather name="zap" size={14} color="#000" />
+                  <Text style={styles.tradeBtnText}>
+                    {existingPos ? "Manage Position" : "Paper Trade"}
+                  </Text>
+                </Pressable>
               </View>
             </View>
 
@@ -721,6 +756,17 @@ export default function StockDetailScreen() {
           </View>
         )}
       </ScrollView>
+
+      {quote && (
+        <TradeModal
+          visible={showTrade}
+          onClose={() => setShowTrade(false)}
+          symbol={symbol ?? ""}
+          name={quote.name}
+          price={quote.price}
+          assetType={symbol?.includes("-USD") ? "crypto" : "stock"}
+        />
+      )}
     </View>
   );
 }
@@ -729,6 +775,38 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: C.background,
+  },
+  tradeActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 14,
+  },
+  positionPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  positionPillText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  tradeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#00D084",
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  tradeBtnText: {
+    color: "#000",
+    fontSize: 14,
+    fontWeight: "700",
   },
   navBar: {
     flexDirection: "row",

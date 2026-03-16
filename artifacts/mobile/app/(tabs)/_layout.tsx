@@ -20,6 +20,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "sparkles", selected: "sparkles" }} />
         <Label>Discover</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="portfolio">
+        <Icon sf={{ default: "briefcase", selected: "briefcase.fill" }} />
+        <Label>Portfolio</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="watchlist">
         <Icon sf={{ default: "star", selected: "star.fill" }} />
         <Label>Watchlist</Label>
@@ -85,6 +89,18 @@ function ClassicTabLayout() {
               <SymbolView name="sparkles" tintColor={color} size={size} />
             ) : (
               <Feather name="compass" size={size} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="portfolio"
+        options={{
+          title: "Portfolio",
+          tabBarIcon: ({ color, size }) =>
+            isIOS ? (
+              <SymbolView name="briefcase.fill" tintColor={color} size={size} />
+            ) : (
+              <Feather name="briefcase" size={size} color={color} />
             ),
         }}
       />

@@ -2,6 +2,8 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useState } from "react";
+import { TradeModal } from "@/components/TradeModal";
+import { usePortfolio } from "@/contexts/portfolio-context";
 import {
   ActivityIndicator,
   FlatList,
@@ -163,9 +165,12 @@ function StrategyCard({ strategy }: { strategy: ProfitStrategy }) {
 
 function DiscoverCard({ item }: { item: DiscoveredStock }) {
   const [expanded, setExpanded] = useState(false);
+  const [showTrade, setShowTrade] = useState(false);
+  const { portfolio } = usePortfolio();
   const isPositive = item.changePercent >= 0;
   const sentimentCfg = SENTIMENT_CONFIG[item.sentiment] ?? SENTIMENT_CONFIG.NEUTRAL;
   const isCrypto = item.assetType === "crypto";
+  const existingPos = portfolio.positions[item.symbol];
 
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -178,6 +183,11 @@ function DiscoverCard({ item }: { item: DiscoveredStock }) {
   const toggleExpand = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setExpanded(!expanded);
+  };
+
+  const handleTrade = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowTrade(true);
   };
 
   return (
@@ -248,6 +258,40 @@ function DiscoverCard({ item }: { item: DiscoveredStock }) {
       </Pressable>
 
       {expanded && <StrategyCard strategy={item.profitStrategy} />}
+
+      <View style={styles.tradeRow}>
+        {existingPos && (
+          <View style={[
+            styles.positionIndicator,
+            { backgroundColor: existingPos.direction === "long" ? "rgba(0,208,132,0.15)" : "rgba(255,77,106,0.15)" }
+          ]}>
+            <Feather
+              name={existingPos.direction === "long" ? "trending-up" : "trending-down"}
+              size={11}
+              color={existingPos.direction === "long" ? "#00D084" : "#FF4D6A"}
+            />
+            <Text style={[styles.positionIndicatorText, { color: existingPos.direction === "long" ? "#00D084" : "#FF4D6A" }]}>
+              {existingPos.direction === "long" ? "LONG" : "SHORT"} · {existingPos.shares.toFixed(isCrypto ? 3 : 2)} sh
+            </Text>
+          </View>
+        )}
+        <Pressable style={styles.tradeThisBtn} onPress={handleTrade}>
+          <Feather name="zap" size={13} color="#000" />
+          <Text style={styles.tradeThisBtnText}>
+            {existingPos ? "Manage Position" : "Paper Trade"}
+          </Text>
+        </Pressable>
+      </View>
+
+      <TradeModal
+        visible={showTrade}
+        onClose={() => setShowTrade(false)}
+        symbol={item.symbol}
+        name={item.name}
+        price={item.price}
+        assetType={isCrypto ? "crypto" : "stock"}
+        suggestedAction={item.profitStrategy.action}
+      />
     </View>
   );
 }
@@ -618,6 +662,42 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.06)",
+  },
+  tradeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.06)",
+  },
+  positionIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  positionIndicatorText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  tradeThisBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#00D084",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  tradeThisBtnText: {
+    color: "#000",
+    fontSize: 13,
+    fontWeight: "700",
   },
   profitMiniTag: {
     paddingHorizontal: 8,
