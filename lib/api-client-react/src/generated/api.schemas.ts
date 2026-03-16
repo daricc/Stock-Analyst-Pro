@@ -8,3 +8,146 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface ErrorResponse {
+  error: string;
+}
+
+export interface StockQuote {
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  open?: number;
+  high?: number;
+  low?: number;
+  volume?: number;
+  marketCap?: number;
+  pe?: number;
+  week52High?: number;
+  week52Low?: number;
+  currency: string;
+  exchange: string;
+  timestamp: string;
+}
+
+export interface PricePoint {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface StockHistory {
+  symbol: string;
+  period: string;
+  data: PricePoint[];
+}
+
+export interface AnalyzeStockRequest {
+  symbol: string;
+  quote?: StockQuote;
+  history?: StockHistory;
+}
+
+export type StockAnalysisRecommendation =
+  (typeof StockAnalysisRecommendation)[keyof typeof StockAnalysisRecommendation];
+
+export const StockAnalysisRecommendation = {
+  STRONG_BUY: "STRONG_BUY",
+  BUY: "BUY",
+  HOLD: "HOLD",
+  SELL: "SELL",
+  STRONG_SELL: "STRONG_SELL",
+} as const;
+
+export type StockAnalysisSentiment =
+  (typeof StockAnalysisSentiment)[keyof typeof StockAnalysisSentiment];
+
+export const StockAnalysisSentiment = {
+  BULLISH: "BULLISH",
+  NEUTRAL: "NEUTRAL",
+  BEARISH: "BEARISH",
+} as const;
+
+export interface PriceRange {
+  low: number;
+  high: number;
+}
+
+export type SignalSignal = (typeof SignalSignal)[keyof typeof SignalSignal];
+
+export const SignalSignal = {
+  BULLISH: "BULLISH",
+  NEUTRAL: "NEUTRAL",
+  BEARISH: "BEARISH",
+} as const;
+
+export interface Signal {
+  name: string;
+  signal: SignalSignal;
+  detail: string;
+}
+
+export interface PriceTargets {
+  bear: number;
+  base: number;
+  bull: number;
+}
+
+export interface StockAnalysis {
+  symbol: string;
+  recommendation: StockAnalysisRecommendation;
+  confidence: number;
+  targetPrice: number;
+  targetPriceRange?: PriceRange;
+  timeHorizon?: string;
+  summary: string;
+  sentiment: StockAnalysisSentiment;
+  technicalSignals: Signal[];
+  fundamentalSignals: Signal[];
+  risks: string[];
+  catalysts: string[];
+  priceTargets?: PriceTargets;
+  generatedAt: string;
+}
+
+export interface StockSearchResult {
+  symbol: string;
+  name: string;
+  exchange: string;
+  type: string;
+}
+
+export interface StockSearchResults {
+  results: StockSearchResult[];
+  query: string;
+}
+
+export type GetStockQuoteParams = {
+  symbol: string;
+};
+
+export type GetStockHistoryParams = {
+  symbol: string;
+  period?: GetStockHistoryPeriod;
+};
+
+export type GetStockHistoryPeriod =
+  (typeof GetStockHistoryPeriod)[keyof typeof GetStockHistoryPeriod];
+
+export const GetStockHistoryPeriod = {
+  "1d": "1d",
+  "5d": "5d",
+  "1mo": "1mo",
+  "3mo": "3mo",
+  "6mo": "6mo",
+  "1y": "1y",
+} as const;
+
+export type SearchStocksParams = {
+  q: string;
+};

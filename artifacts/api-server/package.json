@@ -11,10 +11,12 @@
   "dependencies": {
     "@workspace/db": "workspace:*",
     "@workspace/api-zod": "workspace:*",
+    "@workspace/integrations-openai-ai-server": "workspace:*",
     "drizzle-orm": "catalog:",
     "express": "^5",
     "cookie-parser": "^1.4.7",
-    "cors": "^2"
+    "cors": "^2",
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
     "@types/node": "catalog:",

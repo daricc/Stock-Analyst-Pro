@@ -5,18 +5,32 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  AnalyzeStockRequest,
+  ErrorResponse,
+  GetStockHistoryParams,
+  GetStockQuoteParams,
+  HealthStatus,
+  SearchStocksParams,
+  StockAnalysis,
+  StockHistory,
+  StockQuote,
+  StockSearchResults,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -92,6 +106,378 @@ export function useHealthCheck<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getHealthCheckQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns current stock price and basic info
+ * @summary Get stock quote
+ */
+export const getGetStockQuoteUrl = (params: GetStockQuoteParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/stocks/quote?${stringifiedParams}`
+    : `/api/stocks/quote`;
+};
+
+export const getStockQuote = async (
+  params: GetStockQuoteParams,
+  options?: RequestInit,
+): Promise<StockQuote> => {
+  return customFetch<StockQuote>(getGetStockQuoteUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetStockQuoteQueryKey = (params?: GetStockQuoteParams) => {
+  return [`/api/stocks/quote`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetStockQuoteQueryOptions = <
+  TData = Awaited<ReturnType<typeof getStockQuote>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params: GetStockQuoteParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStockQuote>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetStockQuoteQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getStockQuote>>> = ({
+    signal,
+  }) => getStockQuote(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getStockQuote>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetStockQuoteQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getStockQuote>>
+>;
+export type GetStockQuoteQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get stock quote
+ */
+
+export function useGetStockQuote<
+  TData = Awaited<ReturnType<typeof getStockQuote>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params: GetStockQuoteParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStockQuote>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetStockQuoteQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns historical price data for a stock
+ * @summary Get stock price history
+ */
+export const getGetStockHistoryUrl = (params: GetStockHistoryParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/stocks/history?${stringifiedParams}`
+    : `/api/stocks/history`;
+};
+
+export const getStockHistory = async (
+  params: GetStockHistoryParams,
+  options?: RequestInit,
+): Promise<StockHistory> => {
+  return customFetch<StockHistory>(getGetStockHistoryUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetStockHistoryQueryKey = (params?: GetStockHistoryParams) => {
+  return [`/api/stocks/history`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetStockHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getStockHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetStockHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStockHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetStockHistoryQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getStockHistory>>> = ({
+    signal,
+  }) => getStockHistory(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getStockHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetStockHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getStockHistory>>
+>;
+export type GetStockHistoryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get stock price history
+ */
+
+export function useGetStockHistory<
+  TData = Awaited<ReturnType<typeof getStockHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetStockHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStockHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetStockHistoryQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns AI-powered analysis with predictions and recommendations
+ * @summary Analyze a stock with AI
+ */
+export const getAnalyzeStockUrl = () => {
+  return `/api/stocks/analyze`;
+};
+
+export const analyzeStock = async (
+  analyzeStockRequest: AnalyzeStockRequest,
+  options?: RequestInit,
+): Promise<StockAnalysis> => {
+  return customFetch<StockAnalysis>(getAnalyzeStockUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(analyzeStockRequest),
+  });
+};
+
+export const getAnalyzeStockMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeStock>>,
+    TError,
+    { data: BodyType<AnalyzeStockRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof analyzeStock>>,
+  TError,
+  { data: BodyType<AnalyzeStockRequest> },
+  TContext
+> => {
+  const mutationKey = ["analyzeStock"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof analyzeStock>>,
+    { data: BodyType<AnalyzeStockRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return analyzeStock(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AnalyzeStockMutationResult = NonNullable<
+  Awaited<ReturnType<typeof analyzeStock>>
+>;
+export type AnalyzeStockMutationBody = BodyType<AnalyzeStockRequest>;
+export type AnalyzeStockMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Analyze a stock with AI
+ */
+export const useAnalyzeStock = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeStock>>,
+    TError,
+    { data: BodyType<AnalyzeStockRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof analyzeStock>>,
+  TError,
+  { data: BodyType<AnalyzeStockRequest> },
+  TContext
+> => {
+  return useMutation(getAnalyzeStockMutationOptions(options));
+};
+
+/**
+ * Search for stocks by name or ticker symbol
+ * @summary Search for stocks
+ */
+export const getSearchStocksUrl = (params: SearchStocksParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/stocks/search?${stringifiedParams}`
+    : `/api/stocks/search`;
+};
+
+export const searchStocks = async (
+  params: SearchStocksParams,
+  options?: RequestInit,
+): Promise<StockSearchResults> => {
+  return customFetch<StockSearchResults>(getSearchStocksUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getSearchStocksQueryKey = (params?: SearchStocksParams) => {
+  return [`/api/stocks/search`, ...(params ? [params] : [])] as const;
+};
+
+export const getSearchStocksQueryOptions = <
+  TData = Awaited<ReturnType<typeof searchStocks>>,
+  TError = ErrorType<unknown>,
+>(
+  params: SearchStocksParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof searchStocks>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getSearchStocksQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof searchStocks>>> = ({
+    signal,
+  }) => searchStocks(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof searchStocks>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type SearchStocksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof searchStocks>>
+>;
+export type SearchStocksQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Search for stocks
+ */
+
+export function useSearchStocks<
+  TData = Awaited<ReturnType<typeof searchStocks>>,
+  TError = ErrorType<unknown>,
+>(
+  params: SearchStocksParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof searchStocks>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getSearchStocksQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

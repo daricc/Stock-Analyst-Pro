@@ -14,3 +14,168 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Returns current stock price and basic info
+ * @summary Get stock quote
+ */
+export const GetStockQuoteQueryParams = zod.object({
+  symbol: zod.coerce.string(),
+});
+
+export const GetStockQuoteResponse = zod.object({
+  symbol: zod.string(),
+  name: zod.string(),
+  price: zod.number(),
+  change: zod.number(),
+  changePercent: zod.number(),
+  open: zod.number().optional(),
+  high: zod.number().optional(),
+  low: zod.number().optional(),
+  volume: zod.number().optional(),
+  marketCap: zod.number().optional(),
+  pe: zod.number().optional(),
+  week52High: zod.number().optional(),
+  week52Low: zod.number().optional(),
+  currency: zod.string(),
+  exchange: zod.string(),
+  timestamp: zod.string(),
+});
+
+/**
+ * Returns historical price data for a stock
+ * @summary Get stock price history
+ */
+export const getStockHistoryQueryPeriodDefault = `1mo`;
+
+export const GetStockHistoryQueryParams = zod.object({
+  symbol: zod.coerce.string(),
+  period: zod
+    .enum(["1d", "5d", "1mo", "3mo", "6mo", "1y"])
+    .default(getStockHistoryQueryPeriodDefault),
+});
+
+export const GetStockHistoryResponse = zod.object({
+  symbol: zod.string(),
+  period: zod.string(),
+  data: zod.array(
+    zod.object({
+      date: zod.string(),
+      open: zod.number(),
+      high: zod.number(),
+      low: zod.number(),
+      close: zod.number(),
+      volume: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * Returns AI-powered analysis with predictions and recommendations
+ * @summary Analyze a stock with AI
+ */
+export const AnalyzeStockBody = zod.object({
+  symbol: zod.string(),
+  quote: zod
+    .object({
+      symbol: zod.string(),
+      name: zod.string(),
+      price: zod.number(),
+      change: zod.number(),
+      changePercent: zod.number(),
+      open: zod.number().optional(),
+      high: zod.number().optional(),
+      low: zod.number().optional(),
+      volume: zod.number().optional(),
+      marketCap: zod.number().optional(),
+      pe: zod.number().optional(),
+      week52High: zod.number().optional(),
+      week52Low: zod.number().optional(),
+      currency: zod.string(),
+      exchange: zod.string(),
+      timestamp: zod.string(),
+    })
+    .optional(),
+  history: zod
+    .object({
+      symbol: zod.string(),
+      period: zod.string(),
+      data: zod.array(
+        zod.object({
+          date: zod.string(),
+          open: zod.number(),
+          high: zod.number(),
+          low: zod.number(),
+          close: zod.number(),
+          volume: zod.number(),
+        }),
+      ),
+    })
+    .optional(),
+});
+
+export const AnalyzeStockResponse = zod.object({
+  symbol: zod.string(),
+  recommendation: zod.enum([
+    "STRONG_BUY",
+    "BUY",
+    "HOLD",
+    "SELL",
+    "STRONG_SELL",
+  ]),
+  confidence: zod.number(),
+  targetPrice: zod.number(),
+  targetPriceRange: zod
+    .object({
+      low: zod.number(),
+      high: zod.number(),
+    })
+    .optional(),
+  timeHorizon: zod.string().optional(),
+  summary: zod.string(),
+  sentiment: zod.enum(["BULLISH", "NEUTRAL", "BEARISH"]),
+  technicalSignals: zod.array(
+    zod.object({
+      name: zod.string(),
+      signal: zod.enum(["BULLISH", "NEUTRAL", "BEARISH"]),
+      detail: zod.string(),
+    }),
+  ),
+  fundamentalSignals: zod.array(
+    zod.object({
+      name: zod.string(),
+      signal: zod.enum(["BULLISH", "NEUTRAL", "BEARISH"]),
+      detail: zod.string(),
+    }),
+  ),
+  risks: zod.array(zod.string()),
+  catalysts: zod.array(zod.string()),
+  priceTargets: zod
+    .object({
+      bear: zod.number(),
+      base: zod.number(),
+      bull: zod.number(),
+    })
+    .optional(),
+  generatedAt: zod.string(),
+});
+
+/**
+ * Search for stocks by name or ticker symbol
+ * @summary Search for stocks
+ */
+export const SearchStocksQueryParams = zod.object({
+  q: zod.coerce.string(),
+});
+
+export const SearchStocksResponse = zod.object({
+  results: zod.array(
+    zod.object({
+      symbol: zod.string(),
+      name: zod.string(),
+      exchange: zod.string(),
+      type: zod.string(),
+    }),
+  ),
+  query: zod.string(),
+});

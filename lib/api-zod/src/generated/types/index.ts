@@ -6,4 +6,22 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./analyzeStockRequest";
+export * from "./errorResponse";
+export * from "./getStockHistoryParams";
+export * from "./getStockHistoryPeriod";
+export * from "./getStockQuoteParams";
 export * from "./healthStatus";
+export * from "./pricePoint";
+export * from "./priceRange";
+export * from "./priceTargets";
+export * from "./searchStocksParams";
+export * from "./signal";
+export * from "./signalSignal";
+export * from "./stockAnalysis";
+export * from "./stockAnalysisRecommendation";
+export * from "./stockAnalysisSentiment";
+export * from "./stockHistory";
+export * from "./stockQuote";
+export * from "./stockSearchResult";
+export * from "./stockSearchResults";

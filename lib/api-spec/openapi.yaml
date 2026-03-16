@@ -1,6 +1,5 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
   description: API specification
@@ -10,6 +9,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: stocks
+    description: Stock analysis operations
 paths:
   /healthz:
     get:
@@ -24,6 +25,95 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /stocks/quote:
+    get:
+      operationId: getStockQuote
+      tags: [stocks]
+      summary: Get stock quote
+      description: Returns current stock price and basic info
+      parameters:
+        - name: symbol
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Stock quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockQuote"
+        "404":
+          description: Stock not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /stocks/history:
+    get:
+      operationId: getStockHistory
+      tags: [stocks]
+      summary: Get stock price history
+      description: Returns historical price data for a stock
+      parameters:
+        - name: symbol
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [1d, 5d, 1mo, 3mo, 6mo, 1y]
+            default: 1mo
+      responses:
+        "200":
+          description: Historical price data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockHistory"
+  /stocks/analyze:
+    post:
+      operationId: analyzeStock
+      tags: [stocks]
+      summary: Analyze a stock with AI
+      description: Returns AI-powered analysis with predictions and recommendations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeStockRequest"
+      responses:
+        "200":
+          description: Stock analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockAnalysis"
+  /stocks/search:
+    get:
+      operationId: searchStocks
+      tags: [stocks]
+      summary: Search for stocks
+      description: Search for stocks by name or ticker symbol
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockSearchResults"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +123,220 @@ components:
           type: string
       required:
         - status
-
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    StockQuote:
+      type: object
+      properties:
+        symbol:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+        change:
+          type: number
+        changePercent:
+          type: number
+        open:
+          type: number
+        high:
+          type: number
+        low:
+          type: number
+        volume:
+          type: number
+        marketCap:
+          type: number
+        pe:
+          type: number
+        week52High:
+          type: number
+        week52Low:
+          type: number
+        currency:
+          type: string
+        exchange:
+          type: string
+        timestamp:
+          type: string
+      required:
+        - symbol
+        - name
+        - price
+        - change
+        - changePercent
+        - currency
+        - exchange
+        - timestamp
+    StockHistory:
+      type: object
+      properties:
+        symbol:
+          type: string
+        period:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PricePoint"
+      required:
+        - symbol
+        - period
+        - data
+    PricePoint:
+      type: object
+      properties:
+        date:
+          type: string
+        open:
+          type: number
+        high:
+          type: number
+        low:
+          type: number
+        close:
+          type: number
+        volume:
+          type: number
+      required:
+        - date
+        - open
+        - high
+        - low
+        - close
+        - volume
+    AnalyzeStockRequest:
+      type: object
+      properties:
+        symbol:
+          type: string
+        quote:
+          $ref: "#/components/schemas/StockQuote"
+        history:
+          $ref: "#/components/schemas/StockHistory"
+      required:
+        - symbol
+    StockAnalysis:
+      type: object
+      properties:
+        symbol:
+          type: string
+        recommendation:
+          type: string
+          enum: [STRONG_BUY, BUY, HOLD, SELL, STRONG_SELL]
+        confidence:
+          type: number
+        targetPrice:
+          type: number
+        targetPriceRange:
+          $ref: "#/components/schemas/PriceRange"
+        timeHorizon:
+          type: string
+        summary:
+          type: string
+        sentiment:
+          type: string
+          enum: [BULLISH, NEUTRAL, BEARISH]
+        technicalSignals:
+          type: array
+          items:
+            $ref: "#/components/schemas/Signal"
+        fundamentalSignals:
+          type: array
+          items:
+            $ref: "#/components/schemas/Signal"
+        risks:
+          type: array
+          items:
+            type: string
+        catalysts:
+          type: array
+          items:
+            type: string
+        priceTargets:
+          $ref: "#/components/schemas/PriceTargets"
+        generatedAt:
+          type: string
+      required:
+        - symbol
+        - recommendation
+        - confidence
+        - targetPrice
+        - summary
+        - sentiment
+        - technicalSignals
+        - fundamentalSignals
+        - risks
+        - catalysts
+        - generatedAt
+    PriceRange:
+      type: object
+      properties:
+        low:
+          type: number
+        high:
+          type: number
+      required:
+        - low
+        - high
+    PriceTargets:
+      type: object
+      properties:
+        bear:
+          type: number
+        base:
+          type: number
+        bull:
+          type: number
+      required:
+        - bear
+        - base
+        - bull
+    Signal:
+      type: object
+      properties:
+        name:
+          type: string
+        signal:
+          type: string
+          enum: [BULLISH, NEUTRAL, BEARISH]
+        detail:
+          type: string
+      required:
+        - name
+        - signal
+        - detail
+    StockSearchResult:
+      type: object
+      properties:
+        symbol:
+          type: string
+        name:
+          type: string
+        exchange:
+          type: string
+        type:
+          type: string
+      required:
+        - symbol
+        - name
+        - exchange
+        - type
+    StockSearchResults:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockSearchResult"
+        query:
+          type: string
+      required:
+        - results
+        - query
