@@ -25,7 +25,7 @@ const C = Colors.light;
 
 async function fetchPrice(symbol: string): Promise<number> {
   const base = getApiUrl();
-  const res = await fetch(`${base}api/stocks/quote/${encodeURIComponent(symbol)}`);
+  const res = await fetch(`${base}api/stocks/quote?symbol=${encodeURIComponent(symbol)}`);
   if (!res.ok) throw new Error("Failed to fetch price");
   const data = await res.json() as { price?: number };
   return data.price ?? 0;
