@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useAuth } from "@/lib/auth";
 
 export interface WatchlistItem {
   symbol: string;
@@ -18,35 +19,88 @@ const WatchlistContext = createContext<WatchlistContextType | null>(null);
 
 const STORAGE_KEY = "@stock_watchlist";
 
+function getApiBaseUrl(): string {
+  if (process.env.EXPO_PUBLIC_DOMAIN) {
+    return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+  }
+  return "";
+}
+
 export function WatchlistProvider({ children }: { children: React.ReactNode }) {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const { isAuthenticated, token } = useAuth();
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then((data) => {
-      if (data) {
+    (async () => {
+      if (isAuthenticated && token) {
         try {
-          setWatchlist(JSON.parse(data) as WatchlistItem[]);
+          const apiBase = getApiBaseUrl();
+          const res = await fetch(`${apiBase}/api/user-data/watchlist`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await res.json();
+          if (data.watchlist) {
+            setWatchlist(data.watchlist as WatchlistItem[]);
+            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data.watchlist));
+            return;
+          }
         } catch {}
       }
-    });
-  }, []);
+      const localData = await AsyncStorage.getItem(STORAGE_KEY);
+      if (localData) {
+        try {
+          setWatchlist(JSON.parse(localData) as WatchlistItem[]);
+        } catch {}
+      }
+    })();
+  }, [isAuthenticated, token]);
 
-  const save = (items: WatchlistItem[]) => {
+  const syncToServer = useCallback(async (items: WatchlistItem[]) => {
+    if (!isAuthenticated || !token) return;
+    try {
+      const apiBase = getApiBaseUrl();
+      await fetch(`${apiBase}/api/user-data/watchlist`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ watchlist: items }),
+      });
+    } catch {}
+  }, [isAuthenticated, token]);
+
+  const save = useCallback((items: WatchlistItem[]) => {
     setWatchlist(items);
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  };
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(() => syncToServer(items), 2000);
+  }, [syncToServer]);
 
-  const addToWatchlist = (item: WatchlistItem) => {
-    save([...watchlist.filter((w) => w.symbol !== item.symbol), item]);
-  };
+  const addToWatchlist = useCallback((item: WatchlistItem) => {
+    setWatchlist(prev => {
+      const updated = [...prev.filter((w) => w.symbol !== item.symbol), item];
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+      syncTimeoutRef.current = setTimeout(() => syncToServer(updated), 2000);
+      return updated;
+    });
+  }, [syncToServer]);
 
-  const removeFromWatchlist = (symbol: string) => {
-    save(watchlist.filter((w) => w.symbol !== symbol));
-  };
+  const removeFromWatchlist = useCallback((symbol: string) => {
+    setWatchlist(prev => {
+      const updated = prev.filter((w) => w.symbol !== symbol);
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+      syncTimeoutRef.current = setTimeout(() => syncToServer(updated), 2000);
+      return updated;
+    });
+  }, [syncToServer]);
 
-  const isInWatchlist = (symbol: string) => {
+  const isInWatchlist = useCallback((symbol: string) => {
     return watchlist.some((w) => w.symbol === symbol);
-  };
+  }, [watchlist]);
 
   return (
     <WatchlistContext.Provider

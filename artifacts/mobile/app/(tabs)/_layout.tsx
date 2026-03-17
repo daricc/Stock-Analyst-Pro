@@ -28,6 +28,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "star", selected: "star.fill" }} />
         <Label>Watchlist</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="profile">
+        <Icon sf={{ default: "person", selected: "person.fill" }} />
+        <Label>Profile</Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
@@ -113,6 +117,18 @@ function ClassicTabLayout() {
               <SymbolView name="star.fill" tintColor={color} size={size} />
             ) : (
               <Ionicons name="star-outline" size={size} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Profile",
+          tabBarIcon: ({ color, size }) =>
+            isIOS ? (
+              <SymbolView name="person.fill" tintColor={color} size={size} />
+            ) : (
+              <Feather name="user" size={size} color={color} />
             ),
         }}
       />

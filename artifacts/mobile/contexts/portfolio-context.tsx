@@ -1,8 +1,16 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useAuth } from "@/lib/auth";
 
 const STORAGE_KEY = "@paper_portfolio_v1";
 const STARTING_BALANCE = 100_000;
+
+function getApiBaseUrl(): string {
+  if (process.env.EXPO_PUBLIC_DOMAIN) {
+    return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+  }
+  return "";
+}
 
 export type Direction = "long" | "short";
 export type TradeAction = "buy" | "sell" | "short" | "cover";
@@ -62,22 +70,57 @@ const PortfolioContext = createContext<PortfolioContextType | null>(null);
 export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const [portfolio, setPortfolio] = useState<Portfolio>(DEFAULT_PORTFOLIO);
   const [loaded, setLoaded] = useState(false);
+  const { isAuthenticated, token } = useAuth();
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then((data) => {
-      if (data) {
+    (async () => {
+      if (isAuthenticated && token) {
         try {
-          setPortfolio(JSON.parse(data) as Portfolio);
+          const apiBase = getApiBaseUrl();
+          const res = await fetch(`${apiBase}/api/user-data/portfolio`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await res.json();
+          if (data.portfolio) {
+            setPortfolio(data.portfolio as Portfolio);
+            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data.portfolio));
+            setLoaded(true);
+            return;
+          }
+        } catch {}
+      }
+      const localData = await AsyncStorage.getItem(STORAGE_KEY);
+      if (localData) {
+        try {
+          setPortfolio(JSON.parse(localData) as Portfolio);
         } catch {}
       }
       setLoaded(true);
-    });
-  }, []);
+    })();
+  }, [isAuthenticated, token]);
+
+  const syncToServer = useCallback(async (p: Portfolio) => {
+    if (!isAuthenticated || !token) return;
+    try {
+      const apiBase = getApiBaseUrl();
+      await fetch(`${apiBase}/api/user-data/portfolio`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ portfolio: p }),
+      });
+    } catch {}
+  }, [isAuthenticated, token]);
 
   const save = useCallback(async (p: Portfolio) => {
     setPortfolio(p);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(p));
-  }, []);
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(() => syncToServer(p), 2000);
+  }, [syncToServer]);
 
   const executeTrade = useCallback(
     async (
