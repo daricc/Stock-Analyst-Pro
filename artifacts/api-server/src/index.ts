@@ -14,7 +14,7 @@ async function initStripe() {
     await runMigrations({ databaseUrl, schema: "stripe" });
     console.log("Stripe schema ready");
 
-    const stripeSync = await getStripeSync();
+    const stripeSync = getStripeSync();
 
     console.log("Setting up managed webhook...");
     const webhookBaseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;

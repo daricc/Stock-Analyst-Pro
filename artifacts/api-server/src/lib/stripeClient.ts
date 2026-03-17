@@ -1,31 +1,23 @@
 import Stripe from "stripe";
 import { StripeSync } from "stripe-replit-sync";
-import { ReplitConnectors } from "@replit/connectors-sdk";
 
 let cachedStripeSync: StripeSync | null = null;
-const connectors = new ReplitConnectors();
 
-async function getStripeCredentials(): Promise<{ secret: string; publishable: string }> {
-  const connections = await connectors.listConnections("stripe");
-  if (!connections.length) {
-    throw new Error("No Stripe connection found. Please set up Stripe integration.");
+function getStripeSecretKey(): string {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    throw new Error("STRIPE_SECRET_KEY environment variable is not set");
   }
-  const settings = connections[0].settings as Record<string, string>;
-  return {
-    secret: settings.secret,
-    publishable: settings.publishable,
-  };
+  return key;
 }
 
-export async function getUncachableStripeClient(): Promise<Stripe> {
-  const creds = await getStripeCredentials();
-  return new Stripe(creds.secret);
+export function getUncachableStripeClient(): Stripe {
+  return new Stripe(getStripeSecretKey());
 }
 
-export async function getStripeSync(): Promise<StripeSync> {
+export function getStripeSync(): StripeSync {
   if (!cachedStripeSync) {
-    const creds = await getStripeCredentials();
-    cachedStripeSync = new StripeSync(creds.secret, process.env.DATABASE_URL!);
+    cachedStripeSync = new StripeSync(getStripeSecretKey(), process.env.DATABASE_URL!);
   }
   return cachedStripeSync;
 }

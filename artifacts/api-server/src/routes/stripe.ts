@@ -100,7 +100,7 @@ router.post("/stripe/checkout", async (req: Request, res: Response) => {
   }
 
   try {
-    const stripe = await getUncachableStripeClient();
+    const stripe = getUncachableStripeClient();
 
     const [user] = await db
       .select()
@@ -158,7 +158,7 @@ router.post("/stripe/portal", async (req: Request, res: Response) => {
   }
 
   try {
-    const stripe = await getUncachableStripeClient();
+    const stripe = getUncachableStripeClient();
     const proto = req.headers["x-forwarded-proto"] || "https";
     const host = req.headers["x-forwarded-host"] || req.headers["host"];
 
