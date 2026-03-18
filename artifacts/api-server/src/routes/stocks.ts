@@ -624,10 +624,23 @@ interface DiscoveredPick {
   dayTradePlaybook?: DayTradePlaybook;
 }
 
-const CRYPTO_SYMBOLS = ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "ADA-USD", "DOGE-USD", "AVAX-USD", "DOT-USD"];
+const CRYPTO_SYMBOLS = [
+  "BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "ADA-USD", "DOGE-USD",
+  "AVAX-USD", "DOT-USD", "MATIC-USD", "LINK-USD", "UNI-USD", "ATOM-USD",
+  "LTC-USD", "NEAR-USD", "APT-USD", "OP-USD", "ARB-USD", "FIL-USD",
+  "SHIB-USD", "PEPE-USD",
+];
 
-const TRENDING_STOCKS = ["NVDA", "TSLA", "AAPL", "MSFT", "AMZN", "META", "GOOGL", "AMD", "PLTR", "COIN"];
-const VOLATILE_STOCKS = ["GME", "MARA", "RIOT", "SOFI", "SMCI", "ARM", "SOXL", "TQQQ", "UVXY", "LABU"];
+const TRENDING_STOCKS = [
+  "NVDA", "TSLA", "AAPL", "MSFT", "AMZN", "META", "GOOGL", "AMD", "PLTR", "COIN",
+  "NFLX", "CRM", "UBER", "SQ", "SHOP", "SNOW", "NET", "CRWD", "ABNB", "RBLX",
+  "DIS", "BA", "JPM", "V", "MA", "PYPL", "INTC", "MU", "QCOM", "AVGO",
+];
+const VOLATILE_STOCKS = [
+  "GME", "MARA", "RIOT", "SOFI", "SMCI", "ARM", "SOXL", "TQQQ", "UVXY", "LABU",
+  "IONQ", "RGTI", "MSTR", "RIVN", "LCID", "NIO", "PLUG", "UPST", "AFRM", "HOOD",
+  "DKNG", "ROKU", "SNAP", "PINS", "OPEN", "CVNA", "JOBY", "RKLB", "LUNR", "ASTS",
+];
 
 let discoverCache: { data: unknown; timestamp: number } | null = null;
 let discoverInFlight: Promise<unknown> | null = null;

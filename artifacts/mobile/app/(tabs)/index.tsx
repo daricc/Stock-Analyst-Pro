@@ -36,9 +36,16 @@ const POPULAR_STOCKS = [
   { symbol: "BTC-USD", name: "Bitcoin USD", exchange: "CCC", type: "CRYPTO" },
   { symbol: "ETH-USD", name: "Ethereum USD", exchange: "CCC", type: "CRYPTO" },
   { symbol: "SOL-USD", name: "Solana USD", exchange: "CCC", type: "CRYPTO" },
+  { symbol: "XRP-USD", name: "XRP USD", exchange: "CCC", type: "CRYPTO" },
+  { symbol: "DOGE-USD", name: "Dogecoin USD", exchange: "CCC", type: "CRYPTO" },
   { symbol: "AMZN", name: "Amazon.com Inc.", exchange: "NASDAQ", type: "EQUITY" },
   { symbol: "META", name: "Meta Platforms", exchange: "NASDAQ", type: "EQUITY" },
+  { symbol: "GOOGL", name: "Alphabet Inc.", exchange: "NASDAQ", type: "EQUITY" },
+  { symbol: "AMD", name: "AMD Inc.", exchange: "NASDAQ", type: "EQUITY" },
+  { symbol: "PLTR", name: "Palantir Technologies", exchange: "NASDAQ", type: "EQUITY" },
+  { symbol: "COIN", name: "Coinbase Global", exchange: "NASDAQ", type: "EQUITY" },
   { symbol: "SPY", name: "SPDR S&P 500 ETF", exchange: "NYSE", type: "ETF" },
+  { symbol: "QQQ", name: "Invesco QQQ Trust", exchange: "NASDAQ", type: "ETF" },
 ];
 
 async function searchStocks(query: string): Promise<SearchResult[]> {
