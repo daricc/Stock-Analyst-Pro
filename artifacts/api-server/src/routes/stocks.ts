@@ -3,6 +3,35 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 
 const router: IRouter = Router();
 
+const DAILY_AI_LIMIT = 10;
+const aiUsage = new Map<string, { count: number; resetAt: number }>();
+
+function checkAiRateLimit(userId: string): { allowed: boolean; remaining: number; resetAt: number } {
+  const now = Date.now();
+  const entry = aiUsage.get(userId);
+
+  if (!entry || now >= entry.resetAt) {
+    const midnight = new Date();
+    midnight.setUTCHours(24, 0, 0, 0);
+    aiUsage.set(userId, { count: 1, resetAt: midnight.getTime() });
+    return { allowed: true, remaining: DAILY_AI_LIMIT - 1, resetAt: midnight.getTime() };
+  }
+
+  if (entry.count >= DAILY_AI_LIMIT) {
+    return { allowed: false, remaining: 0, resetAt: entry.resetAt };
+  }
+
+  entry.count++;
+  return { allowed: true, remaining: DAILY_AI_LIMIT - entry.count, resetAt: entry.resetAt };
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of aiUsage) {
+    if (now >= entry.resetAt) aiUsage.delete(key);
+  }
+}, 60 * 60 * 1000);
+
 const YAHOO_BASE = "https://query1.finance.yahoo.com";
 const YAHOO_SCREENER_BASE = "https://query2.finance.yahoo.com";
 
@@ -222,6 +251,19 @@ router.post("/stocks/analyze", async (req, res) => {
     return;
   }
 
+  const rateCheck = checkAiRateLimit(req.user!.id);
+  if (!rateCheck.allowed) {
+    const resetDate = new Date(rateCheck.resetAt);
+    res.status(429).json({
+      error: "Daily AI analysis limit reached",
+      message: `You've used all ${DAILY_AI_LIMIT} analyses for today. Resets at ${resetDate.toUTCString()}.`,
+      limit: DAILY_AI_LIMIT,
+      remaining: 0,
+      resetsAt: resetDate.toISOString(),
+    });
+    return;
+  }
+
   const { symbol, quote, history, investmentStrategy } = req.body as {
     symbol: string;
     quote?: Record<string, unknown>;
@@ -383,7 +425,7 @@ Be specific and data-driven. Base your analysis on the provided data. Provide re
       result["shortSpecific"] = analysis["shortSpecific"];
     }
 
-    res.json(result);
+    res.json({ ...result, _rateLimit: { remaining: rateCheck.remaining, limit: DAILY_AI_LIMIT } });
   } catch (err) {
     console.error("Analysis error:", err);
     res.status(500).json({ error: "Failed to analyze stock" });

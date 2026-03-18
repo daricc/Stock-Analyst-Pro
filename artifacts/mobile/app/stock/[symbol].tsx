@@ -22,6 +22,7 @@ import { usePortfolio } from "@/contexts/portfolio-context";
 import { TradeModal } from "@/components/TradeModal";
 import { PremiumGate, PremiumBadge } from "@/components/PremiumGate";
 import { useSubscription } from "@/lib/revenuecat";
+import { useAuth } from "@/lib/auth";
 
 const C = Colors.light;
 
@@ -147,15 +148,27 @@ async function analyzeStock(
   symbol: string,
   quote: StockQuote | undefined,
   history: PricePoint[] | undefined,
-  investmentStrategy: InvestmentStrategy
-): Promise<StockAnalysis> {
+  investmentStrategy: InvestmentStrategy,
+  token: string | null
+): Promise<StockAnalysis & { _rateLimit?: { remaining: number; limit: number } }> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
   const res = await fetch(`${getApiUrl()}api/stocks/analyze`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ symbol, quote, history: { symbol, period: "3mo", data: history }, investmentStrategy }),
   });
+
+  if (res.status === 429) {
+    const data = await res.json();
+    throw new Error(data.message || "Daily analysis limit reached. Try again tomorrow.");
+  }
+  if (res.status === 401) {
+    throw new Error("Please log in to use AI analysis.");
+  }
   if (!res.ok) throw new Error("Analysis failed");
-  return res.json() as Promise<StockAnalysis>;
+  return res.json() as Promise<StockAnalysis & { _rateLimit?: { remaining: number; limit: number } }>;
 }
 
 function MiniChart({ data, positive }: { data: PricePoint[]; positive: boolean }) {
@@ -271,7 +284,9 @@ export default function StockDetailScreen() {
   const inWatchlist = isInWatchlist(symbol ?? "");
   const { portfolio } = usePortfolio();
   const { isSubscribed } = useSubscription();
+  const { token } = useAuth();
   const [showTrade, setShowTrade] = useState(false);
+  const [analysesRemaining, setAnalysesRemaining] = useState<number | null>(null);
   const existingPos = portfolio.positions[symbol ?? ""];
 
   const webTopPad = Platform.OS === "web" ? 67 : 0;
@@ -295,9 +310,12 @@ export default function StockDetailScreen() {
     data: analysis,
     isPending: analyzing,
     isError: analysisError,
+    error: analysisErrorObj,
   } = useMutation({
-    mutationFn: () => analyzeStock(symbol ?? "", quote, history, selectedStrategy),
-
+    mutationFn: () => analyzeStock(symbol ?? "", quote, history, selectedStrategy, token),
+    onSuccess: (data) => {
+      if (data._rateLimit) setAnalysesRemaining(data._rateLimit.remaining);
+    },
   });
 
   const isPositive = (quote?.changePercent ?? 0) >= 0;
@@ -466,6 +484,11 @@ export default function StockDetailScreen() {
                     <Feather name="cpu" size={20} color={C.navy} />
                     <Text style={styles.analyzeBtnText}>Run AI Analysis</Text>
                   </Pressable>
+                  {analysesRemaining !== null && (
+                    <Text style={styles.rateLimitText}>
+                      {analysesRemaining} of 10 daily analyses remaining
+                    </Text>
+                  )}
                 </View>
               ) : (
                 <PremiumGate feature="AI Stock Analysis" />
@@ -482,10 +505,14 @@ export default function StockDetailScreen() {
             {analysisError && !analyzing && (
               <View style={styles.errorContainer}>
                 <Feather name="alert-triangle" size={20} color={C.negative} />
-                <Text style={styles.errorText}>Analysis failed. Please try again.</Text>
-                <Pressable onPress={handleAnalyze}>
-                  <Text style={styles.retryText}>Retry</Text>
-                </Pressable>
+                <Text style={styles.errorText}>
+                  {analysisErrorObj?.message || "Analysis failed. Please try again."}
+                </Text>
+                {!analysisErrorObj?.message?.includes("limit") && (
+                  <Pressable onPress={handleAnalyze}>
+                    <Text style={styles.retryText}>Retry</Text>
+                  </Pressable>
+                )}
               </View>
             )}
 
@@ -1000,6 +1027,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "Inter_700Bold",
     color: C.navy,
+  },
+  rateLimitText: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.4)",
+    textAlign: "center" as const,
+    marginTop: 8,
   },
   analyzingContainer: {
     flexDirection: "row",
