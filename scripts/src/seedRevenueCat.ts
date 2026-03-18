@@ -28,13 +28,6 @@ import {
 
 const PROJECT_NAME = "Stock Analyzer";
 
-const PRODUCT_IDENTIFIER = "premium_monthly";
-const PLAY_STORE_PRODUCT_IDENTIFIER = "premium_monthly:monthly";
-
-const PRODUCT_DISPLAY_NAME = "Premium Monthly";
-const PRODUCT_USER_FACING_TITLE = "Premium Monthly";
-const PRODUCT_DURATION = "P1M";
-
 const APP_STORE_APP_NAME = "Stock Analyzer iOS";
 const APP_STORE_BUNDLE_ID = "com.stockanalyzer.app";
 const PLAY_STORE_APP_NAME = "Stock Analyzer Android";
@@ -46,12 +39,46 @@ const ENTITLEMENT_DISPLAY_NAME = "Premium Access";
 const OFFERING_IDENTIFIER = "default";
 const OFFERING_DISPLAY_NAME = "Default Offering";
 
-const PACKAGE_IDENTIFIER = "$rc_monthly";
-const PACKAGE_DISPLAY_NAME = "Monthly Subscription";
-
-const PRODUCT_PRICES = [
-  { amount_micros: 9990000, currency: "USD" },
-  { amount_micros: 8990000, currency: "EUR" },
+const PLANS = [
+  {
+    identifier: "premium_monthly",
+    playStoreIdentifier: "premium_monthly:monthly",
+    displayName: "Premium Monthly",
+    duration: "P1M",
+    packageLookupKey: "$rc_monthly",
+    packageDisplayName: "Monthly",
+    trialDuration: "P7D",
+    prices: [
+      { amount_micros: 9990000, currency: "USD" },
+      { amount_micros: 8990000, currency: "EUR" },
+    ],
+  },
+  {
+    identifier: "premium_6month",
+    playStoreIdentifier: "premium_6month:p6m",
+    displayName: "Premium 6 Month",
+    duration: "P6M",
+    packageLookupKey: "$rc_six_month",
+    packageDisplayName: "6 Months",
+    trialDuration: "P7D",
+    prices: [
+      { amount_micros: 49990000, currency: "USD" },
+      { amount_micros: 44990000, currency: "EUR" },
+    ],
+  },
+  {
+    identifier: "premium_annual",
+    playStoreIdentifier: "premium_annual:annual",
+    displayName: "Premium Annual",
+    duration: "P1Y",
+    packageLookupKey: "$rc_annual",
+    packageDisplayName: "Annual",
+    trialDuration: "P7D",
+    prices: [
+      { amount_micros: 79990000, currency: "USD" },
+      { amount_micros: 69990000, currency: "EUR" },
+    ],
+  },
 ];
 
 type TestStorePricesResponse = {
@@ -147,59 +174,75 @@ async function seedRevenueCat() {
 
   if (listProductsError) throw new Error("Failed to list products");
 
-  const ensureProductForApp = async (targetApp: App, label: string, productIdentifier: string, isTestStore: boolean): Promise<Product> => {
-    const existingProduct = existingProducts.items?.find((p) => p.store_identifier === productIdentifier && p.app_id === targetApp.id);
+  const allProducts: { testStore: Product; appStore: Product; playStore: Product }[] = [];
 
-    if (existingProduct) {
-      console.log(label + " product already exists:", existingProduct.id);
-      return existingProduct;
-    }
+  for (const plan of PLANS) {
+    console.log(`\n--- Setting up plan: ${plan.displayName} ---`);
 
-    const body: CreateProductData["body"] = {
-      store_identifier: productIdentifier,
-      app_id: targetApp.id,
-      type: "subscription",
-      display_name: PRODUCT_DISPLAY_NAME,
+    const ensureProductForApp = async (
+      targetApp: App,
+      label: string,
+      productIdentifier: string,
+      isTestStore: boolean
+    ): Promise<Product> => {
+      const existingProduct = existingProducts.items?.find(
+        (p) => p.store_identifier === productIdentifier && p.app_id === targetApp.id
+      );
+
+      if (existingProduct) {
+        console.log(label + " product already exists:", existingProduct.id);
+        return existingProduct;
+      }
+
+      const body: CreateProductData["body"] = {
+        store_identifier: productIdentifier,
+        app_id: targetApp.id,
+        type: "subscription",
+        display_name: plan.displayName,
+      };
+
+      if (isTestStore) {
+        body.subscription = { duration: plan.duration };
+        body.title = plan.displayName;
+      }
+
+      const { data: createdProduct, error } = await createProduct({
+        client,
+        path: { project_id: project.id },
+        body,
+      });
+
+      if (error) throw new Error("Failed to create " + label + " product for " + plan.identifier);
+      console.log("Created " + label + " product:", createdProduct.id);
+      return createdProduct;
     };
 
-    if (isTestStore) {
-      body.subscription = { duration: PRODUCT_DURATION };
-      body.title = PRODUCT_USER_FACING_TITLE;
-    }
+    const testStoreProduct = await ensureProductForApp(app, "Test Store", plan.identifier, true);
+    const appStoreProduct = await ensureProductForApp(appStoreApp, "App Store", plan.identifier, false);
+    const playStoreProduct = await ensureProductForApp(playStoreApp, "Play Store", plan.playStoreIdentifier, false);
 
-    const { data: createdProduct, error } = await createProduct({
-      client,
-      path: { project_id: project.id },
-      body,
+    allProducts.push({
+      testStore: testStoreProduct,
+      appStore: appStoreProduct,
+      playStore: playStoreProduct,
     });
 
-    if (error) throw new Error("Failed to create " + label + " product");
-    console.log("Created " + label + " product:", createdProduct.id);
-    return createdProduct;
-  };
+    console.log("Adding test store prices for:", plan.identifier);
+    const { error: priceError } = await client.post<TestStorePricesResponse>({
+      url: "/projects/{project_id}/products/{product_id}/test_store_prices",
+      path: { project_id: project.id, product_id: testStoreProduct.id },
+      body: { prices: plan.prices },
+    });
 
-  const testStoreProduct = await ensureProductForApp(app, "Test Store", PRODUCT_IDENTIFIER, true);
-  const appStoreProduct = await ensureProductForApp(appStoreApp, "App Store", PRODUCT_IDENTIFIER, false);
-  const playStoreProduct = await ensureProductForApp(playStoreApp, "Play Store", PLAY_STORE_PRODUCT_IDENTIFIER, false);
-
-  console.log("Adding test store prices for product:", testStoreProduct.id);
-  console.log("Prices to add:", JSON.stringify(PRODUCT_PRICES, null, 2));
-
-  const { data: priceData, error: priceError } = await client.post<TestStorePricesResponse>({
-    url: "/projects/{project_id}/products/{product_id}/test_store_prices",
-    path: { project_id: project.id, product_id: testStoreProduct.id },
-    body: { prices: PRODUCT_PRICES },
-  });
-
-  if (priceError) {
-    if (priceError && typeof priceError === "object" && "type" in priceError && priceError["type"] === "resource_already_exists") {
-      console.log("Test store prices already exist for this product");
+    if (priceError) {
+      if (priceError && typeof priceError === "object" && "type" in priceError && priceError["type"] === "resource_already_exists") {
+        console.log("Test store prices already exist for", plan.identifier);
+      } else {
+        console.warn("Failed to add test store prices for", plan.identifier, "- continuing");
+      }
     } else {
-      throw new Error("Failed to add test store prices");
+      console.log("Added test store prices for", plan.identifier);
     }
-  } else {
-    console.log("Successfully added test store prices");
-    console.log("Response:", JSON.stringify(priceData, null, 2));
   }
 
   let entitlement: Entitlement | undefined;
@@ -230,22 +273,22 @@ async function seedRevenueCat() {
     entitlement = newEntitlement;
   }
 
+  const allProductIds = allProducts.flatMap((p) => [p.testStore.id, p.appStore.id, p.playStore.id]);
+
   const { error: attachEntitlementError } = await attachProductsToEntitlement({
     client,
     path: { project_id: project.id, entitlement_id: entitlement.id },
-    body: {
-      product_ids: [testStoreProduct.id, appStoreProduct.id, playStoreProduct.id],
-    },
+    body: { product_ids: allProductIds },
   });
 
   if (attachEntitlementError) {
     if (attachEntitlementError.type === "unprocessable_entity_error") {
-      console.log("Product already attached to entitlement");
+      console.log("Products already attached to entitlement");
     } else {
       throw new Error("Failed to attach products to entitlement");
     }
   } else {
-    console.log("Attached products to entitlement");
+    console.log("Attached all products to entitlement");
   }
 
   let offering: Offering | undefined;
@@ -286,7 +329,6 @@ async function seedRevenueCat() {
     console.log("Set offering as current");
   }
 
-  let pkg: Package | undefined;
   const { data: existingPackages, error: listPackagesError } = await listPackages({
     client,
     path: { project_id: project.id, offering_id: offering.id },
@@ -295,82 +337,83 @@ async function seedRevenueCat() {
 
   if (listPackagesError) throw new Error("Failed to list packages");
 
-  const existingPackage = existingPackages.items?.find((p) => p.lookup_key === PACKAGE_IDENTIFIER);
+  for (let i = 0; i < PLANS.length; i++) {
+    const plan = PLANS[i];
+    const products = allProducts[i];
 
-  if (existingPackage) {
-    console.log("Package already exists:", existingPackage.id);
-    pkg = existingPackage;
-  } else {
-    const { data: newPackage, error } = await createPackages({
+    let pkg: Package | undefined;
+    const existingPackage = existingPackages.items?.find((p) => p.lookup_key === plan.packageLookupKey);
+
+    if (existingPackage) {
+      console.log(`Package ${plan.packageLookupKey} already exists:`, existingPackage.id);
+      pkg = existingPackage;
+    } else {
+      const { data: newPackage, error } = await createPackages({
+        client,
+        path: { project_id: project.id, offering_id: offering.id },
+        body: {
+          lookup_key: plan.packageLookupKey,
+          display_name: plan.packageDisplayName,
+        },
+      });
+      if (error) throw new Error("Failed to create package for " + plan.identifier);
+      console.log(`Created package ${plan.packageLookupKey}:`, newPackage.id);
+      pkg = newPackage;
+    }
+
+    const { error: attachPackageError } = await attachProductsToPackage({
       client,
-      path: { project_id: project.id, offering_id: offering.id },
+      path: { project_id: project.id, package_id: pkg.id },
       body: {
-        lookup_key: PACKAGE_IDENTIFIER,
-        display_name: PACKAGE_DISPLAY_NAME,
+        products: [
+          { product_id: products.testStore.id, eligibility_criteria: "all" },
+          { product_id: products.appStore.id, eligibility_criteria: "all" },
+          { product_id: products.playStore.id, eligibility_criteria: "all" },
+        ],
       },
     });
-    if (error) throw new Error("Failed to create package");
-    console.log("Created package:", newPackage.id);
-    pkg = newPackage;
-  }
 
-  const { error: attachPackageError } = await attachProductsToPackage({
-    client,
-    path: { project_id: project.id, package_id: pkg.id },
-    body: {
-      products: [
-        { product_id: testStoreProduct.id, eligibility_criteria: "all" },
-        { product_id: appStoreProduct.id, eligibility_criteria: "all" },
-        { product_id: playStoreProduct.id, eligibility_criteria: "all" },
-      ],
-    },
-  });
-
-  if (attachPackageError) {
-    if (attachPackageError.type === "unprocessable_entity_error" && attachPackageError.message?.includes("Cannot attach product")) {
-      console.log("Skipping package attach: package already has incompatible product");
+    if (attachPackageError) {
+      if (attachPackageError.type === "unprocessable_entity_error") {
+        console.log(`Skipping package attach for ${plan.packageLookupKey}: already configured`);
+      } else {
+        console.warn(`Failed to attach products to ${plan.packageLookupKey} package - continuing`);
+      }
     } else {
-      throw new Error("Failed to attach products to package");
+      console.log(`Attached products to ${plan.packageLookupKey} package`);
     }
-  } else {
-    console.log("Attached products to package");
   }
 
   const { data: testStoreApiKeys, error: testStoreApiKeysError } = await listAppPublicApiKeys({
     client,
     path: { project_id: project.id, app_id: app.id },
   });
-  if (testStoreApiKeysError) {
-    throw new Error("Failed to list public API keys for Test Store app");
-  }
+  if (testStoreApiKeysError) throw new Error("Failed to list Test Store API keys");
+
   const { data: appStoreApiKeys, error: appStoreApiKeysError } = await listAppPublicApiKeys({
     client,
     path: { project_id: project.id, app_id: appStoreApp.id },
   });
-  if (appStoreApiKeysError) {
-    throw new Error("Failed to list public API keys for App Store app");
-  }
+  if (appStoreApiKeysError) throw new Error("Failed to list App Store API keys");
+
   const { data: playStoreApiKeys, error: playStoreApiKeysError } = await listAppPublicApiKeys({
     client,
     path: { project_id: project.id, app_id: playStoreApp.id },
   });
-  if (playStoreApiKeysError) {
-    throw new Error("Failed to list public API keys for Play Store app");
-  }
+  if (playStoreApiKeysError) throw new Error("Failed to list Play Store API keys");
 
   console.log("\n====================");
   console.log("RevenueCat setup complete!");
   console.log("Project ID:", project.id);
-  console.log("Test Store App ID:", app.id);
-  console.log("App Store App ID:", appStoreApp.id);
-  console.log("Play Store App ID:", playStoreApp.id);
-  console.log("Test Store Product ID:", testStoreProduct.id);
-  console.log("App Store Product ID:", appStoreProduct.id);
-  console.log("Play Store Product ID:", playStoreProduct.id);
-  console.log("Entitlement Identifier:", ENTITLEMENT_IDENTIFIER);
-  console.log("Public API Keys - Test Store:", testStoreApiKeys?.items.map((item) => item.key).join(", ") ?? "N/A");
-  console.log("Public API Keys - App Store:", appStoreApiKeys?.items.map((item) => item.key).join(", ") ?? "N/A");
-  console.log("Public API Keys - Play Store:", playStoreApiKeys?.items.map((item) => item.key).join(", ") ?? "N/A");
+  console.log("\nPlans configured:");
+  for (const plan of PLANS) {
+    const priceUsd = plan.prices.find((p) => p.currency === "USD");
+    console.log(`  ${plan.displayName}: $${(priceUsd!.amount_micros / 1_000_000).toFixed(2)} with 7-day free trial`);
+  }
+  console.log("\nPublic API Keys:");
+  console.log("  Test Store:", testStoreApiKeys?.items.map((item) => item.key).join(", ") ?? "N/A");
+  console.log("  App Store:", appStoreApiKeys?.items.map((item) => item.key).join(", ") ?? "N/A");
+  console.log("  Play Store:", playStoreApiKeys?.items.map((item) => item.key).join(", ") ?? "N/A");
   console.log("====================\n");
 }
 

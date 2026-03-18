@@ -135,7 +135,7 @@ export default function ProfileScreen() {
             <TouchableOpacity style={styles.menuItem} onPress={() => setShowPaywall(true)}>
               <View style={styles.menuLeft}>
                 <Feather name="star" size={20} color="#FFD700" />
-                <Text style={styles.menuText}>Upgrade to Premium</Text>
+                <Text style={styles.menuText}>Start Free Trial</Text>
               </View>
               <Feather name="chevron-right" size={18} color={Colors.light.secondaryText} />
             </TouchableOpacity>

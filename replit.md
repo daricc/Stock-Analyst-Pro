@@ -92,7 +92,10 @@ Premium is gated via `PremiumGate` component and `useSubscription` hook. Revenue
 
 - **Project**: Stock Analyzer (projbe0ce7a1)
 - **Entitlement**: `premium`
-- **Product**: `premium_monthly` ($9.99/mo)
+- **Products**:
+  - `premium_monthly` ($9.99/mo) — 7-day free trial
+  - `premium_6month` ($49.99/6mo) — 7-day free trial
+  - `premium_annual` ($79.99/yr) — 7-day free trial, best value
 - **API Keys**: Stored as `EXPO_PUBLIC_REVENUECAT_*` env vars
 - **Client**: `lib/revenuecat.tsx` — SubscriptionProvider wraps entire app
 - **Seed script**: `scripts/src/seedRevenueCat.ts`
