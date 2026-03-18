@@ -5,18 +5,34 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
-    "userInterfaceStyle": "automatic",
+    "scheme": "stockanalyzer",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0A0F1E"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.stockanalyzer.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Used to show local market hours and relevant exchanges.",
+        "NSCameraUsageDescription": "Used to scan QR codes for quick stock lookup.",
+        "NSPhotoLibraryUsageDescription": "Used to save chart screenshots.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
-    "android": {},
+    "android": {
+      "package": "com.stockanalyzer.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#0A0F1E"
+      }
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },

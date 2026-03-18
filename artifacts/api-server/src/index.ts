@@ -4,8 +4,9 @@ import app from "./app";
 
 async function initStripe() {
   const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    console.warn("DATABASE_URL not set — skipping Stripe init");
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  if (!databaseUrl || !stripeKey || stripeKey.length < 20) {
+    console.warn("Stripe not configured — skipping Stripe init (using RevenueCat for subscriptions)");
     return;
   }
 

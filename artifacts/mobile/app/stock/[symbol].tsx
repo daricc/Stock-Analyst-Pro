@@ -20,6 +20,8 @@ import { getApiUrl } from "@/lib/query-client";
 import { useWatchlist } from "@/contexts/watchlist-context";
 import { usePortfolio } from "@/contexts/portfolio-context";
 import { TradeModal } from "@/components/TradeModal";
+import { PremiumGate, PremiumBadge } from "@/components/PremiumGate";
+import { useSubscription } from "@/lib/revenuecat";
 
 const C = Colors.light;
 
@@ -268,6 +270,7 @@ export default function StockDetailScreen() {
   const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useWatchlist();
   const inWatchlist = isInWatchlist(symbol ?? "");
   const { portfolio } = usePortfolio();
+  const { isSubscribed } = useSubscription();
   const [showTrade, setShowTrade] = useState(false);
   const existingPos = portfolio.positions[symbol ?? ""];
 
@@ -432,38 +435,41 @@ export default function StockDetailScreen() {
             </View>
 
             {!analysis && !analyzing && (
-              <View style={styles.strategySection}>
-                <Text style={styles.strategySectionTitle}>Investment Strategy</Text>
-                <View style={styles.strategyRow}>
-                  {STRATEGIES.map((s) => (
-                    <Pressable
-                      key={s.value}
-                      style={[styles.strategyBtn, selectedStrategy === s.value && styles.strategyBtnActive]}
-                      onPress={() => {
-                        setSelectedStrategy(s.value);
-                        Haptics.selectionAsync();
-                      }}
-                    >
-                      <Feather
-                        name={s.value === "standard" ? "bar-chart-2" : s.value === "futures" ? "clock" : "arrow-down-right"}
-                        size={14}
-                        color={selectedStrategy === s.value ? C.navy : C.whiteMedium}
-                      />
-                      <Text style={[styles.strategyLabel, selectedStrategy === s.value && styles.strategyLabelActive]}>
-                        {s.label}
-                      </Text>
-                    </Pressable>
-                  ))}
+              isSubscribed ? (
+                <View style={styles.strategySection}>
+                  <Text style={styles.strategySectionTitle}>Investment Strategy</Text>
+                  <View style={styles.strategyRow}>
+                    {STRATEGIES.map((s) => (
+                      <Pressable
+                        key={s.value}
+                        style={[styles.strategyBtn, selectedStrategy === s.value && styles.strategyBtnActive]}
+                        onPress={() => {
+                          setSelectedStrategy(s.value);
+                          Haptics.selectionAsync();
+                        }}
+                      >
+                        <Feather
+                          name={s.value === "standard" ? "bar-chart-2" : s.value === "futures" ? "clock" : "arrow-down-right"}
+                          size={14}
+                          color={selectedStrategy === s.value ? C.navy : C.whiteMedium}
+                        />
+                        <Text style={[styles.strategyLabel, selectedStrategy === s.value && styles.strategyLabelActive]}>
+                          {s.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <Pressable
+                    style={({ pressed }) => [styles.analyzeBtn, pressed && styles.analyzeBtnPressed]}
+                    onPress={handleAnalyze}
+                  >
+                    <Feather name="cpu" size={20} color={C.navy} />
+                    <Text style={styles.analyzeBtnText}>Run AI Analysis</Text>
+                  </Pressable>
                 </View>
-                <Pressable
-                  style={({ pressed }) => [styles.analyzeBtn, pressed && styles.analyzeBtnPressed]}
-                  onPress={handleAnalyze}
-                >
-                  <Feather name="cpu" size={20} color={C.navy} />
-                  <Text style={styles.analyzeBtnText}>Run AI Analysis</Text>
-                </Pressable>
-              </View>
-
+              ) : (
+                <PremiumGate feature="AI Stock Analysis" />
+              )
             )}
 
             {analyzing && (

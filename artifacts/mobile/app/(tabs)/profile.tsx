@@ -1,7 +1,7 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import React from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -16,11 +16,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth";
 import { usePortfolio } from "@/contexts/portfolio-context";
+import { useSubscription } from "@/lib/revenuecat";
+import { PremiumBadge, PaywallModal } from "@/components/PremiumGate";
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, isLoading, isAuthenticated, login, logout } = useAuth();
   const { portfolio } = usePortfolio();
+  const { isSubscribed } = useSubscription();
+  const [showPaywall, setShowPaywall] = useState(false);
   const webTopPad = Platform.OS === "web" ? 67 : 0;
 
   if (isLoading) {
@@ -117,6 +121,29 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Subscription</Text>
+        <View style={styles.menuCard}>
+          {isSubscribed ? (
+            <View style={styles.menuItem}>
+              <View style={styles.menuLeft}>
+                <Feather name="star" size={20} color="#FFD700" />
+                <Text style={styles.menuText}>Premium Active</Text>
+              </View>
+              <PremiumBadge />
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.menuItem} onPress={() => setShowPaywall(true)}>
+              <View style={styles.menuLeft}>
+                <Feather name="star" size={20} color="#FFD700" />
+                <Text style={styles.menuText}>Upgrade to Premium</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={Colors.light.secondaryText} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
 
         <View style={styles.menuCard}>
@@ -139,6 +166,8 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      <PaywallModal visible={showPaywall} onClose={() => setShowPaywall(false)} />
 
       <View style={{ height: 120 }} />
     </ScrollView>

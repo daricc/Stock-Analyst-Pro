@@ -217,6 +217,11 @@ ${entryExitJson}`;
 }
 
 router.post("/stocks/analyze", async (req, res) => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Authentication required for AI analysis" });
+    return;
+  }
+
   const { symbol, quote, history, investmentStrategy } = req.body as {
     symbol: string;
     quote?: Record<string, unknown>;

@@ -33,6 +33,12 @@ export function WatchlistProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     (async () => {
+      const localData = await AsyncStorage.getItem(STORAGE_KEY);
+      let localWatchlist: WatchlistItem[] | null = null;
+      if (localData) {
+        try { localWatchlist = JSON.parse(localData) as WatchlistItem[]; } catch {}
+      }
+
       if (isAuthenticated && token) {
         try {
           const apiBase = getApiBaseUrl();
@@ -45,13 +51,21 @@ export function WatchlistProvider({ children }: { children: React.ReactNode }) {
             await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data.watchlist));
             return;
           }
+          if (localWatchlist && localWatchlist.length > 0) {
+            setWatchlist(localWatchlist);
+            try {
+              await fetch(`${apiBase}/api/user-data/watchlist`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ watchlist: localWatchlist }),
+              });
+            } catch {}
+            return;
+          }
         } catch {}
       }
-      const localData = await AsyncStorage.getItem(STORAGE_KEY);
-      if (localData) {
-        try {
-          setWatchlist(JSON.parse(localData) as WatchlistItem[]);
-        } catch {}
+      if (localWatchlist) {
+        setWatchlist(localWatchlist);
       }
     })();
   }, [isAuthenticated, token]);

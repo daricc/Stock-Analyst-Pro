@@ -20,7 +20,7 @@ runButton = "Project"
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
-integrations = ["stripe:1.0.0"]
+integrations = ["stripe:1.0.0", "revenuecat:1.0.0"]
 
 [postMerge]
 path = "scripts/post-merge.sh"
@@ -33,3 +33,10 @@ channel = "stable-25_05"
 
 [userenv.shared]
 STRIPE_PUBLISHABLE_KEY = "pk_test_51TBBSr69C6hYsg7nzRqdoCIpJfNQ92pTevIHXy6zaZzkKHYI8ADIVkJB0XU4wYVtFDlfx2iiRYJQUWqnRT7UTYLc00uZ2djCBh"
+EXPO_PUBLIC_REVENUECAT_TEST_API_KEY = "test_GsOSyVfngtVDtMhMLZPfIrUWuDn"
+EXPO_PUBLIC_REVENUECAT_IOS_API_KEY = "appl_hlPAcWpsiAzTLPXTnPSDJjZAONi"
+EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY = "goog_zBJwcdBHLEzmLIzqXpZHItrsDbP"
+REVENUECAT_PROJECT_ID = "projbe0ce7a1"
+REVENUECAT_TEST_STORE_APP_ID = "appc758acb95a"
+REVENUECAT_APPLE_APP_STORE_APP_ID = "app6014d8cb23"
+REVENUECAT_GOOGLE_PLAY_STORE_APP_ID = "app477bf2b10c"

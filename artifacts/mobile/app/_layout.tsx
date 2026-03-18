@@ -17,8 +17,10 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/lib/auth";
 import { WatchlistProvider } from "@/contexts/watchlist-context";
 import { PortfolioProvider } from "@/contexts/portfolio-context";
+import { SubscriptionProvider, initializeRevenueCat } from "@/lib/revenuecat";
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
+initializeRevenueCat();
+
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
@@ -62,15 +64,17 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <WatchlistProvider>
-              <PortfolioProvider>
+            <SubscriptionProvider>
+              <WatchlistProvider>
+                <PortfolioProvider>
                 <GestureHandlerRootView>
                   <KeyboardProvider>
                     <RootLayoutNav />
                   </KeyboardProvider>
                 </GestureHandlerRootView>
-              </PortfolioProvider>
-            </WatchlistProvider>
+                </PortfolioProvider>
+              </WatchlistProvider>
+            </SubscriptionProvider>
           </AuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>

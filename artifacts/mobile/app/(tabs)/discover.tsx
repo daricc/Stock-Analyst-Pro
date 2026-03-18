@@ -4,6 +4,8 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import { TradeModal } from "@/components/TradeModal";
 import { usePortfolio } from "@/contexts/portfolio-context";
+import { PremiumGate, PremiumBadge } from "@/components/PremiumGate";
+import { useSubscription } from "@/lib/revenuecat";
 import {
   ActivityIndicator,
   FlatList,
@@ -321,6 +323,7 @@ function DiscoverCard({ item }: { item: DiscoveredStock }) {
   const [expanded, setExpanded] = useState(false);
   const [showTrade, setShowTrade] = useState(false);
   const { portfolio } = usePortfolio();
+  const { isSubscribed } = useSubscription();
   const isPositive = item.changePercent >= 0;
   const sentimentCfg = SENTIMENT_CONFIG[item.sentiment] ?? SENTIMENT_CONFIG.NEUTRAL;
   const isCrypto = item.assetType === "crypto";
@@ -398,6 +401,7 @@ function DiscoverCard({ item }: { item: DiscoveredStock }) {
         <Text style={[styles.strategyToggleText, isDayTrade && { color: "#FF9500" }]}>
           {expanded ? (isDayTrade ? "Hide Playbook" : "Hide Strategy") : (isDayTrade ? "View Day Trade Playbook" : "View Profit Strategy")}
         </Text>
+        {!isSubscribed && <PremiumBadge />}
         {!expanded && item.profitStrategy.expectedProfitPercent > 0 && (
           <View style={[
             styles.profitMiniTag,
@@ -418,9 +422,17 @@ function DiscoverCard({ item }: { item: DiscoveredStock }) {
         <Feather name={expanded ? "chevron-up" : "chevron-down"} size={14} color={C.tint} />
       </Pressable>
 
-      {expanded && <StrategyCard strategy={item.profitStrategy} />}
-      {expanded && isDayTrade && item.dayTradePlaybook && (
-        <PlaybookCard playbook={item.dayTradePlaybook} />
+      {expanded && (
+        isSubscribed ? (
+          <>
+            <StrategyCard strategy={item.profitStrategy} />
+            {isDayTrade && item.dayTradePlaybook && (
+              <PlaybookCard playbook={item.dayTradePlaybook} />
+            )}
+          </>
+        ) : (
+          <PremiumGate feature={isDayTrade ? "Day Trade Playbooks" : "Profit Strategies"} />
+        )
       )}
 
       <View style={styles.tradeRow}>

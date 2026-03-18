@@ -75,6 +75,12 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     (async () => {
+      const localData = await AsyncStorage.getItem(STORAGE_KEY);
+      let localPortfolio: Portfolio | null = null;
+      if (localData) {
+        try { localPortfolio = JSON.parse(localData) as Portfolio; } catch {}
+      }
+
       if (isAuthenticated && token) {
         try {
           const apiBase = getApiBaseUrl();
@@ -88,13 +94,22 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
             setLoaded(true);
             return;
           }
+          if (localPortfolio) {
+            setPortfolio(localPortfolio);
+            setLoaded(true);
+            try {
+              await fetch(`${apiBase}/api/user-data/portfolio`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ portfolio: localPortfolio }),
+              });
+            } catch {}
+            return;
+          }
         } catch {}
       }
-      const localData = await AsyncStorage.getItem(STORAGE_KEY);
-      if (localData) {
-        try {
-          setPortfolio(JSON.parse(localData) as Portfolio);
-        } catch {}
+      if (localPortfolio) {
+        setPortfolio(localPortfolio);
       }
       setLoaded(true);
     })();
