@@ -636,6 +636,14 @@ const TRENDING_STOCKS = [
   "NFLX", "CRM", "UBER", "SQ", "SHOP", "SNOW", "NET", "CRWD", "ABNB", "RBLX",
   "DIS", "BA", "JPM", "V", "MA", "PYPL", "INTC", "MU", "QCOM", "AVGO",
 ];
+const RETAIL_FAVORITES = [
+  "AMC", "BBBY", "WISH", "CLOV", "SPCE", "TLRY", "SNDL", "WKHS", "BB", "NOK",
+  "CELH", "HIMS", "DUOL", "TTD", "ENPH", "SEDG", "FSLR", "ARKG", "ARKK", "XBI",
+];
+const MOMENTUM_STOCKS = [
+  "APP", "DASH", "PANW", "ZS", "DDOG", "MDB", "OKTA", "BILL", "CFLT", "GTLB",
+  "RDDT", "CART", "BIRK", "ONON", "CAVA", "TOST", "GRAB", "SE", "BABA", "JD",
+];
 const VOLATILE_STOCKS = [
   "GME", "MARA", "RIOT", "SOFI", "SMCI", "ARM", "SOXL", "TQQQ", "UVXY", "LABU",
   "IONQ", "RGTI", "MSTR", "RIVN", "LCID", "NIO", "PLUG", "UPST", "AFRM", "HOOD",
@@ -651,7 +659,7 @@ const VALID_SENTIMENTS = new Set(["BULLISH", "BEARISH", "NEUTRAL"]);
 const VALID_ACTIONS = new Set(["BUY", "SELL", "SHORT", "HOLD", "WATCH"]);
 
 async function generateDiscoverData() {
-    const allSymbols = [...new Set([...TRENDING_STOCKS, ...VOLATILE_STOCKS, ...CRYPTO_SYMBOLS])];
+    const allSymbols = [...new Set([...TRENDING_STOCKS, ...RETAIL_FAVORITES, ...MOMENTUM_STOCKS, ...VOLATILE_STOCKS, ...CRYPTO_SYMBOLS])];
     const quoteMap = await fetchMultiQuote(allSymbols);
 
     type TickerInfo = { symbol: string; name: string; price: number; change: number; changePercent: number; volume: number; marketCap: number; category: string; assetType: string; intradayRangePct: number; gapPct: number; dayHigh: number; dayLow: number };
@@ -685,6 +693,16 @@ async function generateDiscoverData() {
     };
 
     for (const sym of TRENDING_STOCKS) {
+      const t = buildTicker(sym, "trending");
+      if (t) tickers.push(t);
+    }
+    for (const sym of RETAIL_FAVORITES) {
+      if (tickers.some((t) => t.symbol === sym)) continue;
+      const t = buildTicker(sym, "trending");
+      if (t) tickers.push(t);
+    }
+    for (const sym of MOMENTUM_STOCKS) {
+      if (tickers.some((t) => t.symbol === sym)) continue;
       const t = buildTicker(sym, "trending");
       if (t) tickers.push(t);
     }
